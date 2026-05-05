@@ -14,7 +14,7 @@ import api from "@/lib/api";
 import { authUtils } from "@/lib/auth";
 import { ApiResponse, AuthResponse } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRight, Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -23,32 +23,45 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 // ── Validation schema ──────────────────────────────────────
-const loginSchema = z.object({
-  email: z.string().email("Please enter a valid email address."),
-  password: z.string().min(6, "Password must be at least 6 characters."),
-});
+const signupSchema = z
+  .object({
+    name: z.string().min(2, "Name must be at least 2 characters."),
+    email: z.string().email("Please enter a valid email address."),
+    password: z.string().min(6, "Password must be at least 6 characters."),
+    confirmPassword: z.string().min(6, "Please confirm your password."),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
+  });
 
-type LoginForm = z.infer<typeof loginSchema>;
+type SignupForm = z.infer<typeof signupSchema>;
 
-export default function LoginPage() {
+export default function SignupPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginForm>({
-    resolver: zodResolver(loginSchema),
+  } = useForm<SignupForm>({
+    resolver: zodResolver(signupSchema),
   });
 
-  const onSubmit = async (data: LoginForm) => {
+  const onSubmit = async (data: SignupForm) => {
     setIsLoading(true);
     try {
       const response = await api.post<ApiResponse<AuthResponse>>(
-        "/auth/login",
-        data,
+        "/auth/register",
+        {
+          name: data.name,
+          email: data.email,
+          password: data.password,
+          role: "Admin",
+        },
       );
 
       if (!response.data.success) {
@@ -57,21 +70,14 @@ export default function LoginPage() {
       }
 
       const user = response.data.data!;
-
-      // ── Only allow Admin ───────────────────────────────
-      if (user.role !== "Admin") {
-        toast.error("Access denied. Admin accounts only.");
-        return;
-      }
-
-      // ── Save auth data ─────────────────────────────────
       authUtils.setAuth(user);
 
-      toast.success(`Welcome back, ${user.name}!`);
+      toast.success(`Welcome, ${user.name}!`);
       router.push("/dashboard");
     } catch (error: any) {
       const message =
-        error.response?.data?.message ?? "Login failed. Please try again.";
+        error.response?.data?.message ??
+        "Registration failed. Please try again.";
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -95,22 +101,46 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-gray-900">
             MediCare<span className="text-blue-600">+</span>
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Admin Panel</p>
+          <p className="text-sm text-gray-500 mt-1">Admin Panel Registration</p>
         </div>
 
-        {/* Login Card */}
+        {/* Signup Card */}
         <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
           <CardHeader className="space-y-1 pb-4">
             <CardTitle className="text-xl font-bold text-gray-900">
-              Sign in to your account
+              Create admin account
             </CardTitle>
             <CardDescription className="text-gray-500">
-              Enter your admin credentials to continue
+              Fill in your details to get started
             </CardDescription>
           </CardHeader>
 
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              {/* Full Name */}
+              <div className="space-y-2">
+                <Label
+                  htmlFor="name"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Full Name
+                </Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="John Doe"
+                  autoComplete="name"
+                  disabled={isLoading}
+                  className={`h-11 ${errors.name ? "border-red-500 focus-visible:ring-red-500" : ""}`}
+                  {...register("name")}
+                />
+                {errors.name && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.name.message}
+                  </p>
+                )}
+              </div>
+
               {/* Email */}
               <div className="space-y-2">
                 <Label
@@ -148,7 +178,7 @@ export default function LoginPage() {
                     id="password"
                     type={showPassword ? "text" : "password"}
                     placeholder="Enter your password"
-                    autoComplete="current-password"
+                    autoComplete="new-password"
                     disabled={isLoading}
                     className={`h-11 pr-10 ${errors.password ? "border-red-500 focus-visible:ring-red-500" : ""}`}
                     {...register("password")}
@@ -172,19 +202,56 @@ export default function LoginPage() {
                 )}
               </div>
 
+              {/* Confirm Password */}
+              <div className="space-y-2">
+                <Label
+                  htmlFor="confirmPassword"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Confirm Password
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Confirm your password"
+                    autoComplete="new-password"
+                    disabled={isLoading}
+                    className={`h-11 pr-10 ${errors.confirmPassword ? "border-red-500 focus-visible:ring-red-500" : ""}`}
+                    {...register("confirmPassword")}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+                {errors.confirmPassword && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.confirmPassword.message}
+                  </p>
+                )}
+              </div>
+
               {/* Submit */}
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-semibold mt-2"
+                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-semibold mt-6"
               >
                 {isLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Signing in...
+                    Creating account...
                   </>
                 ) : (
-                  "Sign In"
+                  "Sign Up"
                 )}
               </Button>
             </form>
@@ -196,16 +263,16 @@ export default function LoginPage() {
               </div>
               <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-white px-2 text-gray-500">
-                  Need an account?
+                  Already have an account?
                 </span>
               </div>
             </div>
 
-            {/* Signup Link */}
-            <Link href="/signup">
+            {/* Login Link */}
+            <Link href="/login">
               <Button type="button" variant="outline" className="w-full h-11">
-                Create Admin Account
-                <ArrowRight className="w-4 h-4 ml-2" />
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Sign In
               </Button>
             </Link>
           </CardContent>
