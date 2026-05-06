@@ -1,39 +1,44 @@
 "use client";
 
+import { authUtils } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { Bell, Search, User } from "lucide-react";
+import { LogOut, UserCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AuthResponse } from "@/types";
 
 export default function AdminHeader() {
+  const [user, setUser] = useState<AuthResponse | null>(null);
+
+  useEffect(() => {
+    setUser(authUtils.getUser());
+  }, []);
+
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
-      <div className="px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-        {/* Search */}
-        <div className="hidden md:flex items-center flex-1 max-w-md">
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+    <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 sm:px-6 lg:px-8">
+      <div>
+        <p className="text-sm text-gray-500">Admin Panel</p>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <div className="hidden items-center gap-2 sm:flex">
+          <UserCircle className="h-6 w-6 text-gray-400" />
+          <div>
+            <p className="text-sm font-semibold text-gray-900">
+              {user?.name ?? "Admin"}
+            </p>
+            <p className="text-xs text-gray-500">{user?.email}</p>
           </div>
         </div>
 
-        {/* Right Actions */}
-        <div className="flex items-center space-x-4 ml-auto">
-          {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="w-5 h-5 text-gray-600" />
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-              3
-            </span>
-          </Button>
-
-          {/* Profile */}
-          <Button variant="ghost" size="icon">
-            <User className="w-5 h-5 text-gray-600" />
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={authUtils.logout}
+          className="gap-2"
+        >
+          <LogOut className="h-4 w-4" />
+          Logout
+        </Button>
       </div>
     </header>
   );

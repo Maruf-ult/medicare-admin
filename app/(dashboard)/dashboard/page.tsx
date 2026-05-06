@@ -1,154 +1,216 @@
-import StatCard from '@/components/admin/StatCard';
-import { ShoppingCart, Package, Pill, Users, TrendingUp, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import Link from 'next/link';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { DashboardOverview } from '@/components/dashboard/DashboardOverview';
+import { PrescriptionQueue } from '@/components/prescriptions/PrescriptionQueue';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { TrendingUp, Activity, Loader2, AlertCircle } from 'lucide-react';
+import api from '@/lib/api';
+import { formatCurrency } from '@/lib/utils';
+
+type DashboardStats = {
+  totalOrders: number;
+  todaysOrders: number;
+  pendingOrders: number;
+  processingOrders: number;
+  deliveredOrders: number;
+  cancelledOrders: number;
+
+  totalRevenue: number;
+  todaysRevenue: number;
+  thisMonthRevenue: number;
+
+  totalPrescriptions: number;
+  pendingPrescriptions: number;
+  approvedPrescriptions: number;
+  rejectedPrescriptions: number;
+
+  totalProducts: number;
+  lowStockProducts: number;
+  outOfStockProducts: number;
+
+  totalCustomers: number;
+  newCustomersToday: number;
+};
+
+type PrescriptionQueueItem = {
+  id: number;
+  patientName: string;
+  status: string;
+  fileUrl: string;
+  message?: string | null;
+  createdAt: string;
+  userName?: string | null;
+};
+
+type ApiResponse<T> = {
+  success: boolean;
+  message: string;
+  data: T;
+  errors?: string[];
+};
+
+type PagedResponse<T> = {
+  items: T[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+};
+
+const emptyStats: DashboardStats = {
+  totalOrders: 0,
+  todaysOrders: 0,
+  pendingOrders: 0,
+  processingOrders: 0,
+  deliveredOrders: 0,
+  cancelledOrders: 0,
+
+  totalRevenue: 0,
+  todaysRevenue: 0,
+  thisMonthRevenue: 0,
+
+  totalPrescriptions: 0,
+  pendingPrescriptions: 0,
+  approvedPrescriptions: 0,
+  rejectedPrescriptions: 0,
+
+  totalProducts: 0,
+  lowStockProducts: 0,
+  outOfStockProducts: 0,
+
+  totalCustomers: 0,
+  newCustomersToday: 0,
+};
+
+function normalizePrescriptionData(
+  data: PagedResponse<PrescriptionQueueItem> | PrescriptionQueueItem[]
+): PrescriptionQueueItem[] {
+  return Array.isArray(data) ? data : data.items;
+}
 
 export default function DashboardPage() {
+  const [stats, setStats] = useState<DashboardStats>(emptyStats);
+  const [prescriptions, setPrescriptions] = useState<PrescriptionQueueItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const getDashboardData = async () => {
+    try {
+      setIsLoading(true);
+      setErrorMessage(null);
+
+      const [statsResponse, prescriptionResponse] = await Promise.all([
+        api.get<ApiResponse<DashboardStats>>('/dashboard'),
+        api.get<ApiResponse<PagedResponse<PrescriptionQueueItem> | PrescriptionQueueItem[]>>(
+          '/prescriptions',
+          {
+            params: {
+              status: 'Pending',
+              pageNumber: 1,
+              pageSize: 5,
+            },
+          }
+        ),
+      ]);
+
+      if (statsResponse.data.success && statsResponse.data.data) {
+        setStats(statsResponse.data.data);
+      }
+
+      if (prescriptionResponse.data.success && prescriptionResponse.data.data) {
+        setPrescriptions(normalizePrescriptionData(prescriptionResponse.data.data));
+      }
+    } catch (error) {
+      console.error('Failed to load dashboard:', error);
+      setErrorMessage('Failed to load dashboard data. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    getDashboardData();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[500px] items-center justify-center">
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Loading dashboard...
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-1">Welcome back! Here's your store overview.</p>
+    <div className="animate-fade-in space-y-8">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+          Platform Management
+        </h1>
+        <p className="text-sm text-gray-500">
+          Monitor orders, revenue, prescriptions, products, and customer activity.
+        </p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard
-          title="Total Orders"
-          value="1,245"
-          change="12% from last month"
-          changeType="increase"
-          icon={ShoppingCart}
-        />
-        <StatCard
-          title="Total Products"
-          value="584"
-          change="8 added this week"
-          changeType="increase"
-          icon={Package}
-        />
-        <StatCard
-          title="Pending Prescriptions"
-          value="23"
-          change="5 need review"
-          changeType="decrease"
-          icon={Pill}
-        />
-        <StatCard
-          title="Total Users"
-          value="3,421"
-          change="156 new this week"
-          changeType="increase"
-          icon={Users}
-        />
-      </div>
-
-      {/* Revenue & Recent Orders */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Revenue Chart */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-lg border border-gray-200">
-          <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center space-x-2">
-            <TrendingUp className="w-5 h-5 text-blue-600" />
-            <span>Revenue This Month</span>
-          </h2>
-          <div className="h-64 flex items-center justify-center text-gray-500">
-            <p>📊 Revenue chart will go here (Chart.js / Recharts)</p>
-          </div>
+      {errorMessage && (
+        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertCircle className="h-4 w-4" />
+          {errorMessage}
         </div>
+      )}
 
-        {/* Quick Stats */}
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <h2 className="text-lg font-bold text-gray-900 mb-6">Quick Stats</h2>
-          <div className="space-y-4">
-            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-              <p className="text-sm text-gray-600">This Month Revenue</p>
-              <p className="text-2xl font-bold text-green-600">৳450,320</p>
-            </div>
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-sm text-gray-600">Orders Completed</p>
-              <p className="text-2xl font-bold text-blue-600">287</p>
-            </div>
-            <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
-              <p className="text-sm text-gray-600">Avg Order Value</p>
-              <p className="text-2xl font-bold text-orange-600">৳1,565</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <DashboardOverview stats={stats} />
 
-      {/* Alerts & Recent Activities */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Alerts */}
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center space-x-2">
-            <AlertCircle className="w-5 h-5 text-orange-600" />
-            <span>Alerts & Warnings</span>
-          </h2>
-          <div className="space-y-3">
-            <div className="p-4 bg-red-50 rounded-lg border-l-4 border-red-600">
-              <p className="font-semibold text-red-900 text-sm">Low Stock Alert</p>
-              <p className="text-xs text-red-700 mt-1">Amoxicillin 500mg stock is below 50 units</p>
-            </div>
-            <div className="p-4 bg-yellow-50 rounded-lg border-l-4 border-yellow-600">
-              <p className="font-semibold text-yellow-900 text-sm">Expiry Warning</p>
-              <p className="text-xs text-yellow-700 mt-1">5 medicine batches expiring within 30 days</p>
-            </div>
-            <div className="p-4 bg-orange-50 rounded-lg border-l-4 border-orange-600">
-              <p className="font-semibold text-orange-900 text-sm">Pending Prescriptions</p>
-              <p className="text-xs text-orange-700 mt-1">23 prescriptions waiting for review</p>
-              <Link href="/dashboard/prescriptions">
-                <Button variant="outline" size="sm" className="mt-2 text-xs">
-                  Review Now
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg font-medium">
+              <TrendingUp className="h-5 w-5 text-blue-500" />
+              Sales Overview
+            </CardTitle>
+          </CardHeader>
 
-        {/* Recent Orders */}
-        <div className="bg-white p-6 rounded-lg border border-gray-200">
-          <h2 className="text-lg font-bold text-gray-900 mb-6">Recent Orders</h2>
-          <div className="space-y-3">
-            {[
-              { id: '#MED2024001', customer: 'Ahmed Hassan', amount: '৳1,250', status: 'Processing' },
-              { id: '#MED2024002', customer: 'Fatima Khan', amount: '৳890', status: 'Shipped' },
-              { id: '#MED2024003', customer: 'Saiful Islam', amount: '৳2,100', status: 'Delivered' },
-              { id: '#MED2024004', customer: 'Maria Ahmed', amount: '৳650', status: 'Pending' },
-            ].map((order, idx) => (
-              <div
-                key={idx}
-                className="p-4 bg-gray-50 rounded-lg flex items-center justify-between border border-gray-200"
-              >
-                <div>
-                  <p className="font-semibold text-gray-900 text-sm">{order.id}</p>
-                  <p className="text-xs text-gray-600">{order.customer}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold text-gray-900">{order.amount}</p>
-                  <p
-                    className={`text-xs font-medium ${
-                      order.status === 'Delivered'
-                        ? 'text-green-600'
-                        : order.status === 'Shipped'
-                          ? 'text-blue-600'
-                          : order.status === 'Processing'
-                            ? 'text-orange-600'
-                            : 'text-gray-600'
-                    }`}
-                  >
-                    {order.status}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-          <Link href="/dashboard/orders">
-            <Button variant="outline" className="w-full mt-4">
-              View All Orders
-            </Button>
-          </Link>
-        </div>
+          <CardContent className="space-y-4">
+            <div className="flex justify-between rounded-lg bg-gray-50 p-4">
+              <span className="text-sm text-gray-500">Today&apos;s Revenue</span>
+              <span className="font-semibold text-gray-900">
+                {formatCurrency(stats.todaysRevenue)}
+              </span>
+            </div>
+
+            <div className="flex justify-between rounded-lg bg-gray-50 p-4">
+              <span className="text-sm text-gray-500">This Month&apos;s Revenue</span>
+              <span className="font-semibold text-gray-900">
+                {formatCurrency(stats.thisMonthRevenue)}
+              </span>
+            </div>
+
+            <div className="flex justify-between rounded-lg bg-gray-50 p-4">
+              <span className="text-sm text-gray-500">Total Revenue</span>
+              <span className="font-semibold text-gray-900">
+                {formatCurrency(stats.totalRevenue)}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg font-medium">
+              <Activity className="h-5 w-5 text-orange-500" />
+              Prescription Queue
+            </CardTitle>
+          </CardHeader>
+
+          <CardContent>
+            <PrescriptionQueue initialItems={prescriptions} />
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
