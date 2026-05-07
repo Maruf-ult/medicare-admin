@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { DashboardOverview } from "@/components/dashboard/DashboardOverview";
+import { Button } from "@/components/ui/button";
 import api from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
 import { ApiResponse, DashboardStats } from "@/types";
-import { DashboardOverview } from "@/components/dashboard/DashboardOverview";
-import { Button } from "@/components/ui/button";
 import {
   AlertCircle,
   BarChart3,
@@ -15,6 +14,7 @@ import {
   ShoppingCart,
   TrendingUp,
 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -130,7 +130,7 @@ export default function DashboardPage() {
       { name: "Delivered", value: stats.deliveredOrders },
       { name: "Cancelled", value: stats.cancelledOrders },
     ],
-    [stats]
+    [stats],
   );
 
   const prescriptionData = useMemo(
@@ -139,7 +139,7 @@ export default function DashboardPage() {
       { name: "Approved", value: stats.approvedPrescriptions },
       { name: "Rejected", value: stats.rejectedPrescriptions },
     ],
-    [stats]
+    [stats],
   );
 
   const inventoryData = useMemo(
@@ -148,7 +148,7 @@ export default function DashboardPage() {
       { name: "Low Stock", value: stats.lowStockProducts },
       { name: "Out Stock", value: stats.outOfStockProducts },
     ],
-    [stats]
+    [stats],
   );
 
   const orderColors = ["#f59e0b", "#3b82f6", "#22c55e", "#ef4444"];
@@ -173,7 +173,8 @@ export default function DashboardPage() {
             Dashboard
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            Platform overview, sales performance, orders, prescriptions, and inventory insights.
+            Platform overview, sales performance, orders, prescriptions, and
+            inventory insights.
           </p>
         </div>
 
@@ -202,7 +203,9 @@ export default function DashboardPage() {
       <div className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-4">
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-500">Today&apos;s Revenue</p>
+            <p className="text-sm font-medium text-gray-500">
+              Today&apos;s Revenue
+            </p>
             <TrendingUp className="h-5 w-5 text-green-600" />
           </div>
           <h3 className="text-2xl font-bold text-gray-900">
@@ -215,7 +218,9 @@ export default function DashboardPage() {
 
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-500">Today&apos;s Orders</p>
+            <p className="text-sm font-medium text-gray-500">
+              Today&apos;s Orders
+            </p>
             <ShoppingCart className="h-5 w-5 text-blue-600" />
           </div>
           <h3 className="text-2xl font-bold text-gray-900">
@@ -303,9 +308,7 @@ export default function DashboardPage() {
 
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
           <div className="mb-6">
-            <h2 className="text-lg font-bold text-gray-900">
-              Order Status
-            </h2>
+            <h2 className="text-lg font-bold text-gray-900">Order Status</h2>
             <p className="text-sm text-gray-500">
               Distribution of order status.
             </p>
@@ -374,9 +377,7 @@ export default function DashboardPage() {
             <h2 className="text-lg font-bold text-gray-900">
               Inventory Health
             </h2>
-            <p className="text-sm text-gray-500">
-              Product stock overview.
-            </p>
+            <p className="text-sm text-gray-500">Product stock overview.</p>
           </div>
 
           <div className="h-80">

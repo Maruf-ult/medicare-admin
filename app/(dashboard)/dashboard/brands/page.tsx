@@ -148,7 +148,7 @@ export default function BrandsPage() {
           asChild
           className="flex items-center space-x-2 bg-blue-600 text-white hover:bg-blue-700"
         >
-          <Link href="/admin/brands/create">
+          <Link href="/dashboard/brands/create">
             <Plus className="h-4 w-4" />
             <span>Add Brand</span>
           </Link>
@@ -172,7 +172,7 @@ export default function BrandsPage() {
           </p>
 
           <Button asChild className="mt-5 bg-blue-600 text-white hover:bg-blue-700">
-            <Link href="/admin/brands/create">
+            <Link href="/dashboard/brands/create">
               <Plus className="mr-2 h-4 w-4" />
               Add Brand
             </Link>
@@ -230,7 +230,7 @@ export default function BrandsPage() {
 
                   <td className="flex items-center space-x-3 px-6 py-4">
                     <Link
-                      href={`/admin/brands/${brand.id}/edit`}
+                      href={`/dashboard/brands/${brand.id}/edit`}
                       className="text-orange-600 hover:text-orange-700"
                       title="Edit brand"
                     >

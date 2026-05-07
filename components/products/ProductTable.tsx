@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Product } from '@/types';
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Product } from "@/types";
 
 interface ProductTableProps {
   products: Product[];
@@ -42,26 +42,42 @@ export function ProductTable({ products }: ProductTableProps) {
                 <TableCell>
                   <div>
                     <p className="font-medium text-gray-900">{product.name}</p>
-                    <p className="text-xs text-gray-400">{product.genericName}</p>
+                    <p className="text-xs text-gray-400">
+                      {product.genericName}
+                    </p>
                   </div>
                 </TableCell>
-                <TableCell className="text-sm text-gray-600">{product.sku}</TableCell>
+                <TableCell className="text-sm text-gray-600">
+                  {product.sku}
+                </TableCell>
                 <TableCell className="text-sm text-gray-600">-</TableCell>
                 <TableCell className="text-sm font-medium text-gray-900">
                   ৳{product.price.toLocaleString()}
                 </TableCell>
                 <TableCell>
-                  <span className={product.stock < 5 ? "text-red-600 font-medium" : "text-gray-700"}>
+                  <span
+                    className={
+                      product.stock < 5
+                        ? "text-red-600 font-medium"
+                        : "text-gray-700"
+                    }
+                  >
                     {product.stock} units
                   </span>
                 </TableCell>
                 <TableCell className="space-x-1.5 whitespace-nowrap">
                   {product.requiresPrescription ? (
-                    <Badge variant="secondary" className="bg-amber-50 text-amber-700 border-amber-200">
+                    <Badge
+                      variant="secondary"
+                      className="bg-amber-50 text-amber-700 border-amber-200"
+                    >
                       Rx Required
                     </Badge>
                   ) : (
-                    <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
+                    <Badge
+                      variant="secondary"
+                      className="bg-blue-50 text-blue-700 border-blue-200"
+                    >
                       OTC
                     </Badge>
                   )}

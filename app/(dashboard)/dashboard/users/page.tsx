@@ -3,15 +3,18 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { formatDate } from "@/lib/utils";
+import { ApiResponse, PagedResponse } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
   AlertCircle,
-  Edit2,
+  Eye,
   Loader2,
   Mail,
   RefreshCcw,
   ToggleLeft,
   ToggleRight,
+  UserCircle,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -19,30 +22,13 @@ type BackendUser = {
   id: number;
   name: string;
   email: string;
-  phone: string;
+  phone?: string | null;
   role: "Customer" | "Admin" | string;
   isActive: boolean;
   profileImageUrl?: string | null;
   createdAt: string;
   lastLoginAt?: string | null;
   totalOrders?: number;
-};
-
-type ApiResponse<T> = {
-  success: boolean;
-  message: string;
-  data: T;
-  errors?: string[];
-};
-
-type PagedResponse<T> = {
-  items: T[];
-  totalCount: number;
-  pageNumber: number;
-  pageSize: number;
-  totalPages: number;
-  hasNextPage: boolean;
-  hasPreviousPage: boolean;
 };
 
 type User = {
@@ -52,24 +38,30 @@ type User = {
   phone: string;
   role: string;
   joinDate: string;
+  lastLoginAt?: string | null;
   totalOrders: number;
   status: "active" | "inactive";
+  profileImageUrl?: string | null;
 };
 
 function extractItems<T>(data: T[] | PagedResponse<T>): T[] {
-  return Array.isArray(data) ? data : data.items;
+  return Array.isArray(data) ? data : data.items ?? [];
 }
 
-function normalizeUsers(data: BackendUser[] | PagedResponse<BackendUser>): User[] {
+function normalizeUsers(
+  data: BackendUser[] | PagedResponse<BackendUser>
+): User[] {
   return extractItems(data).map((user) => ({
     id: user.id,
     name: user.name,
     email: user.email,
-    phone: user.phone,
+    phone: user.phone ?? "N/A",
     role: user.role,
     joinDate: user.createdAt,
+    lastLoginAt: user.lastLoginAt,
     totalOrders: user.totalOrders ?? 0,
     status: user.isActive ? "active" : "inactive",
+    profileImageUrl: user.profileImageUrl,
   }));
 }
 
@@ -80,6 +72,7 @@ const statusColors: Record<User["status"], string> = {
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -89,15 +82,14 @@ export default function UsersPage() {
       setIsLoading(true);
       setErrorMessage(null);
 
-      const response = await api.get<ApiResponse<BackendUser[] | PagedResponse<BackendUser>>>(
-        "/users",
-        {
-          params: {
-            pageNumber: 1,
-            pageSize: 100,
-          },
-        }
-      );
+      const response = await api.get<
+        ApiResponse<BackendUser[] | PagedResponse<BackendUser>>
+      >("/users", {
+        params: {
+          pageNumber: 1,
+          pageSize: 100,
+        },
+      });
 
       if (response.data.success && response.data.data) {
         setUsers(normalizeUsers(response.data.data));
@@ -135,15 +127,27 @@ export default function UsersPage() {
       );
 
       if (response.data.success) {
+        const newStatus: User["status"] =
+          user.status === "active" ? "inactive" : "active";
+
         setUsers((prev) =>
           prev.map((item) =>
             item.id === user.id
               ? {
                   ...item,
-                  status: item.status === "active" ? "inactive" : "active",
+                  status: newStatus,
                 }
               : item
           )
+        );
+
+        setSelectedUser((prev) =>
+          prev && prev.id === user.id
+            ? {
+                ...prev,
+                status: newStatus,
+              }
+            : prev
         );
 
         toast.success(`User "${user.name}" status updated successfully`);
@@ -245,9 +249,11 @@ export default function UsersPage() {
                     {user.name}
                   </td>
 
-                  <td className="flex items-center space-x-2 px-6 py-4 text-gray-700">
-                    <Mail className="h-4 w-4 text-gray-400" />
-                    <span>{user.email}</span>
+                  <td className="px-6 py-4 text-gray-700">
+                    <div className="flex items-center space-x-2">
+                      <Mail className="h-4 w-4 text-gray-400" />
+                      <span>{user.email}</span>
+                    </div>
                   </td>
 
                   <td className="px-6 py-4 text-gray-700">{user.phone}</td>
@@ -280,41 +286,41 @@ export default function UsersPage() {
                     </span>
                   </td>
 
-                  <td className="flex items-center space-x-3 px-6 py-4">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        toast.info(`Opening profile for ${user.name}...`)
-                      }
-                      className="text-orange-600 hover:text-orange-700"
-                      title="View/Edit user"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </button>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center space-x-3">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedUser(user)}
+                        className="text-blue-600 hover:text-blue-700"
+                        title="View user details"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
 
-                    <button
-                      type="button"
-                      disabled={updatingId === user.id}
-                      onClick={() => handleToggleStatus(user)}
-                      className={`hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60 ${
-                        user.status === "active"
-                          ? "text-red-600"
-                          : "text-green-600"
-                      }`}
-                      title={
-                        user.status === "active"
-                          ? "Deactivate user"
-                          : "Activate user"
-                      }
-                    >
-                      {updatingId === user.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : user.status === "active" ? (
-                        <ToggleRight className="h-5 w-5" />
-                      ) : (
-                        <ToggleLeft className="h-5 w-5" />
-                      )}
-                    </button>
+                      <button
+                        type="button"
+                        disabled={updatingId === user.id}
+                        onClick={() => handleToggleStatus(user)}
+                        className={`hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60 ${
+                          user.status === "active"
+                            ? "text-red-600"
+                            : "text-green-600"
+                        }`}
+                        title={
+                          user.status === "active"
+                            ? "Deactivate user"
+                            : "Activate user"
+                        }
+                      >
+                        {updatingId === user.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : user.status === "active" ? (
+                          <ToggleRight className="h-5 w-5" />
+                        ) : (
+                          <ToggleLeft className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -322,6 +328,151 @@ export default function UsersPage() {
           </table>
         </div>
       )}
+
+      {selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-4xl rounded-md border border-gray-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  User Details
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  View customer/admin account information.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedUser(null)}
+                className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-[280px_1fr]">
+              <div className="rounded-md border border-gray-200 bg-gray-50 p-5">
+                <div className="mb-4 flex justify-center">
+                  <div className="flex h-24 w-24 items-center justify-center rounded-md bg-blue-100">
+                    {selectedUser.profileImageUrl ? (
+                      <img
+                        src={selectedUser.profileImageUrl}
+                        alt={selectedUser.name}
+                        className="h-24 w-24 rounded-md object-cover"
+                      />
+                    ) : (
+                      <UserCircle className="h-14 w-14 text-blue-600" />
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-center">
+                  <h3 className="text-lg font-bold text-gray-900">
+                    {selectedUser.name}
+                  </h3>
+                  <p className="mt-1 break-all text-sm text-gray-500">
+                    {selectedUser.email}
+                  </p>
+
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-medium ${
+                        selectedUser.role === "Admin"
+                          ? "bg-purple-100 text-purple-700"
+                          : "bg-blue-100 text-blue-700"
+                      }`}
+                    >
+                      {selectedUser.role}
+                    </span>
+
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-medium ${statusColors[selectedUser.status]}`}
+                    >
+                      {selectedUser.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <DetailRow label="User ID" value={selectedUser.id} />
+                <DetailRow label="Name" value={selectedUser.name} />
+                <DetailRow label="Email" value={selectedUser.email} />
+                <DetailRow label="Phone" value={selectedUser.phone || "N/A"} />
+                <DetailRow label="Role" value={selectedUser.role} />
+                <DetailRow
+                  label="Joined"
+                  value={formatDate(selectedUser.joinDate)}
+                />
+                <DetailRow
+                  label="Last Login"
+                  value={
+                    selectedUser.lastLoginAt
+                      ? formatDate(selectedUser.lastLoginAt)
+                      : "N/A"
+                  }
+                />
+                <DetailRow
+                  label="Total Orders"
+                  value={selectedUser.totalOrders}
+                />
+                <DetailRow label="Status" value={selectedUser.status} />
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-gray-200 px-6 py-4 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setSelectedUser(null)}
+              >
+                Close
+              </Button>
+
+              <Button
+                type="button"
+                disabled={updatingId === selectedUser.id}
+                onClick={() => handleToggleStatus(selectedUser)}
+                className={`text-white disabled:bg-gray-300 ${
+                  selectedUser.status === "active"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-green-600 hover:bg-green-700"
+                }`}
+              >
+                {updatingId === selectedUser.id ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : selectedUser.status === "active" ? (
+                  <ToggleRight className="mr-2 h-4 w-4" />
+                ) : (
+                  <ToggleLeft className="mr-2 h-4 w-4" />
+                )}
+
+                {selectedUser.status === "active"
+                  ? "Deactivate User"
+                  : "Activate User"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="flex min-h-[58px] items-center justify-between rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
+      <span className="text-sm text-gray-500">{label}</span>
+      <span className="ml-4 break-all text-right text-sm font-semibold text-gray-900">
+        {value}
+      </span>
     </div>
   );
 }

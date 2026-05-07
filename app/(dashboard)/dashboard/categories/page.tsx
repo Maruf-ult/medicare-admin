@@ -151,7 +151,7 @@ export default function CategoriesPage() {
           asChild
           className="flex items-center space-x-2 bg-blue-600 text-white hover:bg-blue-700"
         >
-          <Link href="/admin/categories/create">
+          <Link href="/dashboard/categories/create">
             <Plus className="h-4 w-4" />
             <span>Add Category</span>
           </Link>
@@ -174,7 +174,7 @@ export default function CategoriesPage() {
             Create your first category to organize products.
           </p>
           <Button asChild className="mt-5 bg-blue-600 text-white hover:bg-blue-700">
-            <Link href="/admin/categories/create">
+            <Link href="/dashboard/categories/create">
               <Plus className="mr-2 h-4 w-4" />
               Add Category
             </Link>
@@ -216,7 +216,7 @@ export default function CategoriesPage() {
 
               <div className="flex items-center space-x-2">
                 <Link
-                  href={`/admin/categories/${category.id}/edit`}
+                  href={`/dashboard/categories/${category.id}/edit`}
                   className="flex flex-1 items-center justify-center space-x-1 text-sm font-medium text-orange-600 hover:text-orange-700"
                 >
                   <Edit2 className="h-4 w-4" />

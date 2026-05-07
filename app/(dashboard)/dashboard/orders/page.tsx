@@ -329,7 +329,7 @@ export default function OrdersPage() {
 
                   <td className="flex items-center space-x-3 px-6 py-4">
                     <Link
-                      href={`/admin/orders/${order.id}`}
+                      href={`/dashboard/orders/${order.id}`}
                       className="text-blue-600 hover:text-blue-700"
                       title="View order"
                     >

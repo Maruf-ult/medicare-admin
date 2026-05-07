@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import api from "@/lib/api";
 import { formatDateTime } from "@/lib/utils";
 import { ApiResponse, PagedResponse } from "@/types";
-import { Button } from "@/components/ui/button";
 import {
   AlertCircle,
   Bell,
@@ -13,6 +11,8 @@ import {
   Loader2,
   RefreshCcw,
 } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 type BackendNotification = {
@@ -26,16 +26,17 @@ type BackendNotification = {
 };
 
 function extractNotifications(
-  data: BackendNotification[] | PagedResponse<BackendNotification>
+  data: BackendNotification[] | PagedResponse<BackendNotification>,
 ): BackendNotification[] {
-  return Array.isArray(data) ? data : data.items ?? [];
+  return Array.isArray(data) ? data : (data.items ?? []);
 }
 
 function getTypeBadgeClass(type: string) {
   const normalized = type.toLowerCase();
 
   if (normalized.includes("order")) return "bg-blue-100 text-blue-700";
-  if (normalized.includes("prescription")) return "bg-purple-100 text-purple-700";
+  if (normalized.includes("prescription"))
+    return "bg-purple-100 text-purple-700";
   if (normalized.includes("payment")) return "bg-green-100 text-green-700";
   if (normalized.includes("stock")) return "bg-orange-100 text-orange-700";
   if (normalized.includes("user")) return "bg-indigo-100 text-indigo-700";
@@ -58,7 +59,9 @@ export default function NotificationsPage() {
 
       const [notificationsResponse, unreadResponse] = await Promise.all([
         api.get<
-          ApiResponse<BackendNotification[] | PagedResponse<BackendNotification>>
+          ApiResponse<
+            BackendNotification[] | PagedResponse<BackendNotification>
+          >
         >("/notifications", {
           params: {
             pageNumber: 1,
@@ -69,12 +72,15 @@ export default function NotificationsPage() {
         api.get<ApiResponse<number>>("/notifications/unread-count"),
       ]);
 
-      if (notificationsResponse.data.success && notificationsResponse.data.data) {
+      if (
+        notificationsResponse.data.success &&
+        notificationsResponse.data.data
+      ) {
         setNotifications(extractNotifications(notificationsResponse.data.data));
       } else {
         setNotifications([]);
         setErrorMessage(
-          notificationsResponse.data.message || "Failed to load notifications."
+          notificationsResponse.data.message || "Failed to load notifications.",
         );
       }
 
@@ -102,7 +108,7 @@ export default function NotificationsPage() {
       setMarkingId(notificationId);
 
       const response = await api.put<ApiResponse<null>>(
-        `/notifications/${notificationId}/read`
+        `/notifications/${notificationId}/read`,
       );
 
       if (response.data.success) {
@@ -110,15 +116,15 @@ export default function NotificationsPage() {
           prev.map((notification) =>
             notification.id === notificationId
               ? { ...notification, isRead: true }
-              : notification
-          )
+              : notification,
+          ),
         );
 
         setUnreadCount((prev) => Math.max(prev - 1, 0));
         toast.success("Notification marked as read");
       } else {
         toast.error(
-          response.data.message || "Failed to mark notification as read."
+          response.data.message || "Failed to mark notification as read.",
         );
       }
     } catch (error) {
@@ -134,7 +140,7 @@ export default function NotificationsPage() {
       setIsMarkingAll(true);
 
       const response = await api.put<ApiResponse<null>>(
-        "/notifications/read-all"
+        "/notifications/read-all",
       );
 
       if (response.data.success) {
@@ -142,7 +148,7 @@ export default function NotificationsPage() {
           prev.map((notification) => ({
             ...notification,
             isRead: true,
-          }))
+          })),
         );
 
         setUnreadCount(0);
@@ -159,7 +165,7 @@ export default function NotificationsPage() {
   };
 
   const readCount = notifications.filter(
-    (notification) => notification.isRead
+    (notification) => notification.isRead,
   ).length;
 
   if (isLoading) {
@@ -280,7 +286,7 @@ export default function NotificationsPage() {
 
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-medium ${getTypeBadgeClass(
-                          notification.type
+                          notification.type,
                         )}`}
                       >
                         {notification.type}
