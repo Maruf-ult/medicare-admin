@@ -20,7 +20,7 @@ export function formatDate(date:string):string{
   return format(new Date(date),'dd MMM yyyy');
 }
 // ── Date formatter ────────────────────────────────────────
-export function formateDateTime(date:string):string{
+export function formatDateTime(date:string):string{
   return format(new Date(date),'dd MMM yyyy,hh:mm a');
 }
 // ── Time ago ──────────────────────────────────────────────

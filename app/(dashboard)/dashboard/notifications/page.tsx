@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import api from "@/lib/api";
-import { formateDateTime } from "@/lib/utils";
+import { formatDateTime } from "@/lib/utils";
 import { ApiResponse, PagedResponse } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -298,7 +298,7 @@ export default function NotificationsPage() {
                     </p>
 
                     <p className="mt-2 text-xs text-gray-400">
-                      {formateDateTime(notification.createdAt)}
+                      {formatDateTime(notification.createdAt)}
                     </p>
 
                     {notification.redirectUrl && (

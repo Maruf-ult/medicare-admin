@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BarChart3,
   Bell,
   Boxes,
   Building2,
@@ -61,12 +60,7 @@ const navItems = [
     label: "Notifications",
     href: "/dashboard/notifications",
     icon: Bell,
-  },
-  {
-    label: "Analytics",
-    href: "/dashboard/analytics",
-    icon: BarChart3,
-  },
+  }
 ];
 
 export default function AdminSidebar() {

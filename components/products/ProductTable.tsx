@@ -46,13 +46,13 @@ export function ProductTable({ products }: ProductTableProps) {
                   </div>
                 </TableCell>
                 <TableCell className="text-sm text-gray-600">{product.sku}</TableCell>
-                <TableCell className="text-sm text-gray-600">{product.categoryName}</TableCell>
+                <TableCell className="text-sm text-gray-600">-</TableCell>
                 <TableCell className="text-sm font-medium text-gray-900">
                   ৳{product.price.toLocaleString()}
                 </TableCell>
                 <TableCell>
-                  <span className={product.stockQuantity < 5 ? "text-red-600 font-medium" : "text-gray-700"}>
-                    {product.stockQuantity} units
+                  <span className={product.stock < 5 ? "text-red-600 font-medium" : "text-gray-700"}>
+                    {product.stock} units
                   </span>
                 </TableCell>
                 <TableCell className="space-x-1.5 whitespace-nowrap">
@@ -65,7 +65,7 @@ export function ProductTable({ products }: ProductTableProps) {
                       OTC
                     </Badge>
                   )}
-                  {product.stockQuantity === 0 && (
+                  {product.stock === 0 && (
                     <Badge variant="destructive">Out of Stock</Badge>
                   )}
                 </TableCell>
