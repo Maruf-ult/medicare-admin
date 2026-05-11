@@ -8,8 +8,9 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // ── Currency formatter ────────────────────────────────────
-export function formatCurrency(amount: number): string {
-  return `৳${amount.toLocaleString("en-BD", {
+export function formatCurrency(amount: number | null | undefined): string {
+  const value = amount ?? 0;
+  return `৳${value.toLocaleString("en-BD", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;

@@ -4,57 +4,56 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Edit2, Loader2, Plus, Trash2, AlertCircle } from "lucide-react";
+import {
+  AlertCircle,
+  Edit2,
+  FolderTree,
+  Loader2,
+  Plus,
+  RefreshCcw,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 type BackendCategory = {
   id: number;
   name: string;
-  slug?: string;
+  slug: string;
   imageUrl?: string | null;
   description?: string | null;
   parentCategoryId?: number | null;
-  sortOrder?: number;
+  sortOrder: number;
   isActive: boolean;
-  productCount?: number;
-  subCategories?: BackendCategory[];
+  subCategories: BackendCategory[];
 };
 
 type ApiResponse<T> = {
   success: boolean;
   message: string;
-  data: T;
+  data: T | null;
   errors?: string[];
-};
-
-type PagedResponse<T> = {
-  items: T[];
-  totalCount: number;
-  pageNumber: number;
-  pageSize: number;
-  totalPages: number;
-  hasNextPage: boolean;
-  hasPreviousPage: boolean;
 };
 
 type CategoryCardItem = {
   id: number;
   name: string;
-  slug?: string;
-  productCount: number;
+  slug: string;
+  description?: string | null;
+  parentCategoryId?: number | null;
+  sortOrder: number;
+  subCategoryCount: number;
   status: "active" | "inactive";
 };
 
-function normalizeCategories(
-  data: BackendCategory[] | PagedResponse<BackendCategory>
-): CategoryCardItem[] {
-  const categories = Array.isArray(data) ? data : data.items;
-
-  return categories.map((category) => ({
+function normalizeCategories(data: BackendCategory[]): CategoryCardItem[] {
+  return data.map((category) => ({
     id: category.id,
     name: category.name,
     slug: category.slug,
-    productCount: category.productCount ?? 0,
+    description: category.description,
+    parentCategoryId: category.parentCategoryId,
+    sortOrder: category.sortOrder,
+    subCategoryCount: category.subCategories?.length ?? 0,
     status: category.isActive ? "active" : "inactive",
   }));
 }
@@ -70,14 +69,9 @@ export default function CategoriesPage() {
       setIsLoading(true);
       setErrorMessage(null);
 
-      const response = await api.get<
-        ApiResponse<BackendCategory[] | PagedResponse<BackendCategory>>
-      >("/categories", {
-        params: {
-          pageNumber: 1,
-          pageSize: 100,
-        },
-      });
+      const response = await api.get<ApiResponse<BackendCategory[]>>(
+        "/categories"
+      );
 
       if (response.data.success && response.data.data) {
         setCategories(normalizeCategories(response.data.data));
@@ -85,10 +79,16 @@ export default function CategoriesPage() {
         setCategories([]);
         setErrorMessage(response.data.message || "Failed to load categories.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to fetch categories:", error);
+
+      const message =
+        error.response?.data?.message ??
+        error.response?.data?.errors?.[0] ??
+        "Failed to load categories. Please try again.";
+
       setCategories([]);
-      setErrorMessage("Failed to load categories. Please try again.");
+      setErrorMessage(message);
     } finally {
       setIsLoading(false);
     }
@@ -118,9 +118,15 @@ export default function CategoriesPage() {
       } else {
         toast.error(response.data.message || "Failed to delete category.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to delete category:", error);
-      toast.error("Failed to delete category. Please try again.");
+
+      const message =
+        error.response?.data?.message ??
+        error.response?.data?.errors?.[0] ??
+        "Failed to delete category. Please try again.";
+
+      toast.error(message);
     } finally {
       setDeletingId(null);
     }
@@ -147,15 +153,27 @@ export default function CategoriesPage() {
           </p>
         </div>
 
-        <Button
-          asChild
-          className="flex items-center space-x-2 bg-blue-600 text-white hover:bg-blue-700"
-        >
-          <Link href="/dashboard/categories/create">
-            <Plus className="h-4 w-4" />
-            <span>Add Category</span>
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={getCategories}
+            className="gap-2"
+          >
+            <RefreshCcw className="h-4 w-4" />
+            Refresh
+          </Button>
+
+          <Button
+            asChild
+            className="gap-2 bg-blue-600 text-white hover:bg-blue-700"
+          >
+            <Link href="/dashboard/categories/create">
+              <Plus className="h-4 w-4" />
+              Add Category
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {errorMessage && (
@@ -167,13 +185,20 @@ export default function CategoriesPage() {
 
       {categories.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-300 bg-white p-10 text-center">
+          <FolderTree className="mx-auto mb-4 h-12 w-12 text-gray-300" />
+
           <h3 className="text-lg font-semibold text-gray-900">
             No categories found
           </h3>
+
           <p className="mt-1 text-sm text-gray-500">
             Create your first category to organize products.
           </p>
-          <Button asChild className="mt-5 bg-blue-600 text-white hover:bg-blue-700">
+
+          <Button
+            asChild
+            className="mt-5 bg-blue-600 text-white hover:bg-blue-700"
+          >
             <Link href="/dashboard/categories/create">
               <Plus className="mr-2 h-4 w-4" />
               Add Category
@@ -192,11 +217,10 @@ export default function CategoriesPage() {
                   <h3 className="text-lg font-semibold text-gray-900">
                     {category.name}
                   </h3>
-                  {category.slug && (
-                    <p className="mt-1 text-xs text-gray-400">
-                      /{category.slug}
-                    </p>
-                  )}
+
+                  <p className="mt-1 text-xs text-gray-400">
+                    /{category.slug}
+                  </p>
                 </div>
 
                 <span
@@ -210,14 +234,30 @@ export default function CategoriesPage() {
                 </span>
               </div>
 
-              <p className="mb-4 text-sm text-gray-600">
-                {category.productCount} products
+              <p className="mb-4 line-clamp-2 min-h-[40px] text-sm text-gray-600">
+                {category.description || "No description provided."}
               </p>
+
+              <div className="mb-5 grid grid-cols-2 gap-3">
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs text-gray-500">Subcategories</p>
+                  <p className="mt-1 font-bold text-gray-900">
+                    {category.subCategoryCount}
+                  </p>
+                </div>
+
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs text-gray-500">Sort Order</p>
+                  <p className="mt-1 font-bold text-gray-900">
+                    {category.sortOrder}
+                  </p>
+                </div>
+              </div>
 
               <div className="flex items-center space-x-2">
                 <Link
                   href={`/dashboard/categories/${category.id}/edit`}
-                  className="flex flex-1 items-center justify-center space-x-1 text-sm font-medium text-orange-600 hover:text-orange-700"
+                  className="flex flex-1 items-center justify-center space-x-1 rounded-lg border border-orange-200 px-3 py-2 text-sm font-medium text-orange-600 hover:bg-orange-50"
                 >
                   <Edit2 className="h-4 w-4" />
                   <span>Edit</span>
@@ -227,7 +267,7 @@ export default function CategoriesPage() {
                   type="button"
                   disabled={deletingId === category.id}
                   onClick={() => handleDeleteCategory(category)}
-                  className="flex flex-1 items-center justify-center space-x-1 text-sm font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex flex-1 items-center justify-center space-x-1 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {deletingId === category.id ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

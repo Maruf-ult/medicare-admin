@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
-import { ApiResponse, PagedResponse } from "@/types";
+import { ApiResponse } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
   AlertCircle,
   ArrowLeft,
-  FolderPen,
+  FolderTree,
   Loader2,
   Save,
 } from "lucide-react";
@@ -18,20 +18,19 @@ import { toast } from "sonner";
 type CategoryResponse = {
   id: number;
   name: string;
-  slug?: string;
-  description?: string | null;
+  slug: string;
   imageUrl?: string | null;
+  description?: string | null;
   parentCategoryId?: number | null;
-  parentCategoryName?: string | null;
-  sortOrder?: number;
+  sortOrder: number;
   isActive: boolean;
-  productCount?: number;
+  subCategories: CategoryResponse[];
 };
 
 type CategoryRequest = {
   name: string;
-  description?: string;
-  imageUrl?: string;
+  imageUrl?: string | null;
+  description?: string | null;
   parentCategoryId?: number | null;
   sortOrder: number;
   isActive: boolean;
@@ -39,41 +38,26 @@ type CategoryRequest = {
 
 const initialForm: CategoryRequest = {
   name: "",
-  description: "",
   imageUrl: "",
+  description: "",
   parentCategoryId: null,
   sortOrder: 0,
   isActive: true,
 };
 
-function extractItems<T>(data: T[] | PagedResponse<T>): T[] {
-  return Array.isArray(data) ? data : data.items ?? [];
-}
-
-function categoryToForm(category: CategoryResponse): CategoryRequest {
-  return {
-    name: category.name ?? "",
-    description: category.description ?? "",
-    imageUrl: category.imageUrl ?? "",
-    parentCategoryId: category.parentCategoryId ?? null,
-    sortOrder: category.sortOrder ?? 0,
-    isActive: category.isActive ?? true,
-  };
-}
-
 export default function EditCategoryPage() {
-  const router = useRouter();
   const params = useParams();
+  const router = useRouter();
 
   const categoryId = Number(params.id);
 
   const [form, setForm] = useState<CategoryRequest>(initialForm);
-  const [categoryName, setCategoryName] = useState("");
   const [parentCategories, setParentCategories] = useState<CategoryResponse[]>(
     []
   );
+
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const getPageData = async () => {
@@ -89,36 +73,45 @@ export default function EditCategoryPage() {
 
       const [categoryResponse, categoriesResponse] = await Promise.all([
         api.get<ApiResponse<CategoryResponse>>(`/categories/${categoryId}`),
-
-        api.get<ApiResponse<CategoryResponse[] | PagedResponse<CategoryResponse>>>(
-          "/categories",
-          {
-            params: {
-              pageNumber: 1,
-              pageSize: 100,
-            },
-          }
-        ),
+        api.get<ApiResponse<CategoryResponse[]>>("/categories"),
       ]);
 
       if (categoryResponse.data.success && categoryResponse.data.data) {
         const category = categoryResponse.data.data;
-        setCategoryName(category.name);
-        setForm(categoryToForm(category));
+
+        setForm({
+          name: category.name ?? "",
+          imageUrl: category.imageUrl ?? "",
+          description: category.description ?? "",
+          parentCategoryId: category.parentCategoryId ?? null,
+          sortOrder: category.sortOrder ?? 0,
+          isActive: category.isActive ?? true,
+        });
       } else {
-        setErrorMessage(categoryResponse.data.message || "Category not found.");
+        setErrorMessage(
+          categoryResponse.data.message || "Failed to load category."
+        );
       }
 
       if (categoriesResponse.data.success && categoriesResponse.data.data) {
-        const allCategories = extractItems(categoriesResponse.data.data);
-
         setParentCategories(
-          allCategories.filter((category) => category.id !== categoryId)
+          categoriesResponse.data.data.filter(
+            (category) => category.id !== categoryId
+          )
         );
+      } else {
+        setParentCategories([]);
       }
-    } catch (error) {
-      console.error("Failed to load category:", error);
-      setErrorMessage("Failed to load category information.");
+    } catch (error: any) {
+      console.error("Failed to load category data:", error);
+
+      const message =
+        error.response?.data?.message ??
+        error.response?.data?.errors?.[0] ??
+        "Failed to load category data.";
+
+      setErrorMessage(message);
+      setParentCategories([]);
     } finally {
       setIsLoading(false);
     }
@@ -150,21 +143,16 @@ export default function EditCategoryPage() {
       return false;
     }
 
-    if (form.parentCategoryId === categoryId) {
-      toast.error("A category cannot be its own parent");
-      return false;
-    }
-
     return true;
   };
 
   const cleanPayload = (): CategoryRequest => {
     return {
       name: form.name.trim(),
-      description: form.description?.trim() || undefined,
-      imageUrl: form.imageUrl?.trim() || undefined,
+      imageUrl: form.imageUrl?.trim() || null,
+      description: form.description?.trim() || null,
       parentCategoryId: form.parentCategoryId || null,
-      sortOrder: form.sortOrder,
+      sortOrder: Number(form.sortOrder) || 0,
       isActive: form.isActive,
     };
   };
@@ -175,10 +163,10 @@ export default function EditCategoryPage() {
     if (!validateForm()) return;
 
     try {
-      setIsSubmitting(true);
+      setIsSaving(true);
       setErrorMessage(null);
 
-      const response = await api.put<ApiResponse<unknown>>(
+      const response = await api.put<ApiResponse<CategoryResponse>>(
         `/categories/${categoryId}`,
         cleanPayload()
       );
@@ -189,18 +177,24 @@ export default function EditCategoryPage() {
       } else {
         toast.error(response.data.message || "Failed to update category");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to update category:", error);
-      setErrorMessage("Failed to update category. Please check your input.");
-      toast.error("Failed to update category");
+
+      const message =
+        error.response?.data?.message ??
+        error.response?.data?.errors?.[0] ??
+        "Failed to update category. Please check your input.";
+
+      setErrorMessage(message);
+      toast.error(message);
     } finally {
-      setIsSubmitting(false);
+      setIsSaving(false);
     }
   };
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[500px] items-center justify-center">
+      <div className="flex min-h-[500px] items-center justify-center p-4 sm:p-6 lg:p-8">
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <Loader2 className="h-5 w-5 animate-spin" />
           Loading category...
@@ -210,7 +204,7 @@ export default function EditCategoryPage() {
   }
 
   return (
-    <div>
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <Link
@@ -223,16 +217,12 @@ export default function EditCategoryPage() {
 
           <h1 className="text-3xl font-bold text-gray-900">Edit Category</h1>
           <p className="mt-1 text-gray-600">
-            Update category information for{" "}
-            <span className="font-semibold text-gray-900">
-              {categoryName || "this category"}
-            </span>
-            .
+            Update category information, parent category, and visibility.
           </p>
         </div>
 
         <div className="rounded-2xl bg-blue-50 p-4">
-          <FolderPen className="h-7 w-7 text-blue-600" />
+          <FolderTree className="h-7 w-7 text-blue-600" />
         </div>
       </div>
 
@@ -254,11 +244,12 @@ export default function EditCategoryPage() {
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Category Name *
               </label>
+
               <input
                 value={form.name}
                 onChange={(event) => updateField("name", event.target.value)}
                 placeholder="Pain Relief"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -266,6 +257,7 @@ export default function EditCategoryPage() {
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Parent Category
               </label>
+
               <select
                 value={form.parentCategoryId ?? 0}
                 onChange={(event) =>
@@ -276,7 +268,7 @@ export default function EditCategoryPage() {
                       : Number(event.target.value)
                   )
                 }
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value={0}>No parent category</option>
 
@@ -292,11 +284,14 @@ export default function EditCategoryPage() {
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Image URL
               </label>
+
               <input
-                value={form.imageUrl}
-                onChange={(event) => updateField("imageUrl", event.target.value)}
+                value={form.imageUrl ?? ""}
+                onChange={(event) =>
+                  updateField("imageUrl", event.target.value)
+                }
                 placeholder="https://example.com/category.png"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -304,14 +299,15 @@ export default function EditCategoryPage() {
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Sort Order
               </label>
+
               <input
                 type="number"
+                min={0}
                 value={form.sortOrder}
                 onChange={(event) =>
                   updateField("sortOrder", Number(event.target.value))
                 }
-                min={0}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -319,14 +315,15 @@ export default function EditCategoryPage() {
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Description
               </label>
+
               <textarea
-                value={form.description}
+                value={form.description ?? ""}
                 onChange={(event) =>
                   updateField("description", event.target.value)
                 }
                 rows={4}
                 placeholder="Write a short description about this category..."
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
@@ -340,6 +337,7 @@ export default function EditCategoryPage() {
                   }
                   className="h-4 w-4 rounded border-gray-300"
                 />
+
                 <span className="text-sm font-medium text-gray-700">
                   Active Category
                 </span>
@@ -355,18 +353,18 @@ export default function EditCategoryPage() {
 
           <Button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSaving}
             className="bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300"
           >
-            {isSubmitting ? (
+            {isSaving ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Updating...
+                Saving...
               </>
             ) : (
               <>
                 <Save className="mr-2 h-4 w-4" />
-                Update Category
+                Save Changes
               </>
             )}
           </Button>

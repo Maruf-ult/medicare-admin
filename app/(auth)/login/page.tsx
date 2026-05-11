@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -12,208 +13,489 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import api from "@/lib/api";
 import { authUtils } from "@/lib/auth";
-import { ApiResponse, AuthResponse } from "@/types";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRight, Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react";
-import Link from "next/link";
+import {
+  ApiResponse,
+  AuthResponse,
+  LoginRequest,
+  RegisterRequest,
+} from "@/types";
+import {
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Loader2,
+  ShieldCheck,
+  UserPlus,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { FormEvent, useState } from "react";
 import { toast } from "sonner";
-import { z } from "zod";
 
-// ── Validation schema ──────────────────────────────────────
-const loginSchema = z.object({
-  email: z.string().email("Please enter a valid email address."),
-  password: z.string().min(6, "Password must be at least 6 characters."),
-});
+type AuthMode = "login" | "register";
 
-type LoginForm = z.infer<typeof loginSchema>;
+const initialLoginForm: LoginRequest = {
+  email: "",
+  password: "",
+};
+
+const initialRegisterForm: RegisterRequest = {
+  name: "",
+  email: "",
+  phone: "",
+  password: "",
+  confirmPassword: "",
+};
 
 export default function LoginPage() {
   const router = useRouter();
+
+  const [mode, setMode] = useState<AuthMode>("login");
+  const [loginForm, setLoginForm] = useState<LoginRequest>(initialLoginForm);
+  const [registerForm, setRegisterForm] =
+    useState<RegisterRequest>(initialRegisterForm);
+
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginForm>({
-    resolver: zodResolver(loginSchema),
-  });
+  const redirectAfterAuth = (user: AuthResponse) => {
+    if (user.role === "Admin") {
+      router.push("/dashboard");
+    } else {
+      router.push("/");
+    }
+  };
 
-  const onSubmit = async (data: LoginForm) => {
-    setIsLoading(true);
+  const updateLoginField = (key: keyof LoginRequest, value: string) => {
+    setLoginForm((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const updateRegisterField = (key: keyof RegisterRequest, value: string) => {
+    setRegisterForm((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  const validateLogin = () => {
+    if (!loginForm.email.trim()) {
+      toast.error("Email is required");
+      return false;
+    }
+
+    if (!loginForm.email.includes("@")) {
+      toast.error("Please enter a valid email address");
+      return false;
+    }
+
+    if (loginForm.password.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return false;
+    }
+
+    return true;
+  };
+
+  const validateRegister = () => {
+    if (!registerForm.name.trim()) {
+      toast.error("Name is required");
+      return false;
+    }
+
+    if (!registerForm.email.trim()) {
+      toast.error("Email is required");
+      return false;
+    }
+
+    if (!registerForm.email.includes("@")) {
+      toast.error("Please enter a valid email address");
+      return false;
+    }
+
+    if (!registerForm.phone.trim()) {
+      toast.error("Phone number is required");
+      return false;
+    }
+
+    if (registerForm.password.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return false;
+    }
+
+    if (registerForm.password !== registerForm.confirmPassword) {
+      toast.error("Password and confirm password do not match");
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleLogin = async () => {
+    if (!validateLogin()) return;
+
     try {
+      setIsLoading(true);
+
       const response = await api.post<ApiResponse<AuthResponse>>(
         "/auth/login",
-        data,
+        {
+          email: loginForm.email.trim(),
+          password: loginForm.password,
+        }
       );
 
-      if (!response.data.success) {
-        toast.error(response.data.message);
+      if (!response.data.success || !response.data.data) {
+        toast.error(response.data.message || "Login failed");
         return;
       }
 
-      const user = response.data.data!;
+      const user = response.data.data;
 
-      // ── Only allow Admin ───────────────────────────────
-      if (user.role !== "Admin") {
-        toast.error("Access denied. Admin accounts only.");
-        return;
-      }
-
-      // ── Save auth data ─────────────────────────────────
       authUtils.setAuth(user);
-
       toast.success(`Welcome back, ${user.name}!`);
-      router.push("/dashboard");
+      redirectAfterAuth(user);
     } catch (error: any) {
       const message =
-        error.response?.data?.message ?? "Login failed. Please try again.";
+        error.response?.data?.message ??
+        error.response?.data?.errors?.[0] ??
+        "Login failed. Please try again.";
+
       toast.error(message);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleRegister = async () => {
+    if (!validateRegister()) return;
+
+    try {
+      setIsLoading(true);
+
+      const response = await api.post<ApiResponse<AuthResponse | null>>(
+        "/auth/register",
+        {
+          name: registerForm.name.trim(),
+          email: registerForm.email.trim(),
+          phone: registerForm.phone.trim(),
+          password: registerForm.password,
+          confirmPassword: registerForm.confirmPassword,
+        }
+      );
+
+      if (!response.data.success) {
+        toast.error(response.data.message || "Registration failed");
+        return;
+      }
+
+      toast.success("Account created successfully");
+
+      if (response.data.data?.token) {
+        authUtils.setAuth(response.data.data);
+        redirectAfterAuth(response.data.data);
+        return;
+      }
+
+      setLoginForm({
+        email: registerForm.email,
+        password: "",
+      });
+
+      setRegisterForm(initialRegisterForm);
+      setMode("login");
+    } catch (error: any) {
+      const message =
+        error.response?.data?.message ??
+        error.response?.data?.errors?.[0] ??
+        "Registration failed. Please try again.";
+
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (mode === "login") {
+      await handleLogin();
+    } else {
+      await handleRegister();
+    }
+  };
+
+  const switchMode = (newMode: AuthMode) => {
+    setMode(newMode);
+    setShowPassword(false);
+    setShowConfirmPassword(false);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
-      {/* Background pattern */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-100 rounded-full opacity-50 blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-100 rounded-full opacity-50 blur-3xl" />
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-50 p-4">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -right-40 -top-40 h-80 w-80 rounded-full bg-blue-100 opacity-50 blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-blue-100 opacity-50 blur-3xl" />
       </div>
 
-      <div className="w-full max-w-md relative z-10">
-        {/* Logo / Brand */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg">
-            <ShieldCheck className="w-8 h-8 text-white" />
+      <div className="relative z-10 w-full max-w-md">
+        <div className="mb-8 text-center">
+          <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 shadow-lg">
+            <ShieldCheck className="h-8 w-8 text-white" />
           </div>
+
           <h1 className="text-2xl font-bold text-gray-900">
             MediCare<span className="text-blue-600">+</span>
           </h1>
-          <p className="text-sm text-gray-500 mt-1">Admin Panel</p>
+
+          <p className="mt-1 text-sm text-gray-500">Online Pharmacy</p>
         </div>
 
-        {/* Login Card */}
-        <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
+        <Card className="border-0 bg-white/85 shadow-xl backdrop-blur-sm">
           <CardHeader className="space-y-1 pb-4">
+            <div className="mb-4 grid grid-cols-2 rounded-lg bg-gray-100 p-1">
+              <button
+                type="button"
+                onClick={() => switchMode("login")}
+                className={`rounded-md px-4 py-2 text-sm font-bold transition ${
+                  mode === "login"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-gray-500 hover:text-gray-900"
+                }`}
+              >
+                Sign In
+              </button>
+
+              <button
+                type="button"
+                onClick={() => switchMode("register")}
+                className={`rounded-md px-4 py-2 text-sm font-bold transition ${
+                  mode === "register"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-gray-500 hover:text-gray-900"
+                }`}
+              >
+                Sign Up
+              </button>
+            </div>
+
             <CardTitle className="text-xl font-bold text-gray-900">
-              Sign in to your account
+              {mode === "login"
+                ? "Sign in to your account"
+                : "Create your account"}
             </CardTitle>
+
             <CardDescription className="text-gray-500">
-              Enter your admin credentials to continue
+              {mode === "login"
+                ? "Enter your email and password to continue"
+                : "Register to order medicines and upload prescriptions"}
             </CardDescription>
           </CardHeader>
 
           <CardContent>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              {/* Email */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {mode === "register" && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full name</Label>
+                    <Input
+                      id="name"
+                      type="text"
+                      placeholder="Your full name"
+                      disabled={isLoading}
+                      value={registerForm.name}
+                      onChange={(event) =>
+                        updateRegisterField("name", event.target.value)
+                      }
+                      className="h-11"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone number</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="01XXXXXXXXX"
+                      disabled={isLoading}
+                      value={registerForm.phone}
+                      onChange={(event) =>
+                        updateRegisterField("phone", event.target.value)
+                      }
+                      className="h-11"
+                    />
+                  </div>
+                </>
+              )}
+
               <div className="space-y-2">
-                <Label
-                  htmlFor="email"
-                  className="text-sm font-medium text-gray-700"
-                >
-                  Email address
-                </Label>
+                <Label htmlFor="email">Email address</Label>
+
                 <Input
                   id="email"
                   type="email"
-                  placeholder="admin@medicare.com"
+                  placeholder="your@email.com"
                   autoComplete="email"
                   disabled={isLoading}
-                  className={`h-11 ${errors.email ? "border-red-500 focus-visible:ring-red-500" : ""}`}
-                  {...register("email")}
+                  value={mode === "login" ? loginForm.email : registerForm.email}
+                  onChange={(event) => {
+                    if (mode === "login") {
+                      updateLoginField("email", event.target.value);
+                    } else {
+                      updateRegisterField("email", event.target.value);
+                    }
+                  }}
+                  className="h-11"
                 />
-                {errors.email && (
-                  <p className="text-xs text-red-500 mt-1">
-                    {errors.email.message}
-                  </p>
-                )}
               </div>
 
-              {/* Password */}
               <div className="space-y-2">
-                <Label
-                  htmlFor="password"
-                  className="text-sm font-medium text-gray-700"
-                >
-                  Password
-                </Label>
+               <div className="flex items-center justify-between">
+  <Label htmlFor="password">Password</Label>
+
+  {mode === "login" && (
+    <Link
+      href="/forgot-password"
+      className="text-xs font-bold text-blue-600 hover:underline"
+    >
+      Forgot password?
+    </Link>
+  )}
+</div>
+
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
                     placeholder="Enter your password"
-                    autoComplete="current-password"
+                    autoComplete={
+                      mode === "login" ? "current-password" : "new-password"
+                    }
                     disabled={isLoading}
-                    className={`h-11 pr-10 ${errors.password ? "border-red-500 focus-visible:ring-red-500" : ""}`}
-                    {...register("password")}
+                    value={
+                      mode === "login"
+                        ? loginForm.password
+                        : registerForm.password
+                    }
+                    onChange={(event) => {
+                      if (mode === "login") {
+                        updateLoginField("password", event.target.value);
+                      } else {
+                        updateRegisterField("password", event.target.value);
+                      }
+                    }}
+                    className="h-11 pr-10"
                   />
+
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-600"
                   >
                     {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
+                      <EyeOff className="h-4 w-4" />
                     ) : (
-                      <Eye className="w-4 h-4" />
+                      <Eye className="h-4 w-4" />
                     )}
                   </button>
                 </div>
-                {errors.password && (
-                  <p className="text-xs text-red-500 mt-1">
-                    {errors.password.message}
-                  </p>
-                )}
               </div>
 
-              {/* Submit */}
+              {mode === "register" && (
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm password</Label>
+
+                  <div className="relative">
+                    <Input
+                      id="confirmPassword"
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Confirm your password"
+                      autoComplete="new-password"
+                      disabled={isLoading}
+                      value={registerForm.confirmPassword}
+                      onChange={(event) =>
+                        updateRegisterField(
+                          "confirmPassword",
+                          event.target.value
+                        )
+                      }
+                      className="h-11 pr-10"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-600"
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-semibold mt-2"
+                className="mt-2 h-11 w-full bg-blue-600 font-semibold text-white hover:bg-blue-700"
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Signing in...
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {mode === "login" ? "Signing in..." : "Creating account..."}
+                  </>
+                ) : mode === "login" ? (
+                  <>
+                    Sign In
+                    <ArrowRight className="ml-2 h-4 w-4" />
                   </>
                 ) : (
-                  "Sign In"
+                  <>
+                    Create Account
+                    <UserPlus className="ml-2 h-4 w-4" />
+                  </>
                 )}
               </Button>
             </form>
 
-            {/* Divider */}
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-gray-500">
-                  Need an account?
-                </span>
-              </div>
+            <div className="mt-6 text-center text-sm text-gray-500">
+              {mode === "login" ? (
+                <>
+                  Don&apos;t have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => switchMode("register")}
+                    className="font-bold text-blue-600 hover:underline"
+                  >
+                    Create one
+                  </button>
+                </>
+              ) : (
+                <>
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => switchMode("login")}
+                    className="font-bold text-blue-600 hover:underline"
+                  >
+                    Sign in
+                  </button>
+                </>
+              )}
             </div>
-
-            {/* Signup Link */}
-            <Link href="/signup">
-              <Button type="button" variant="outline" className="w-full h-11">
-                Create Admin Account
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </Link>
           </CardContent>
         </Card>
 
-        {/* Footer */}
-        <p className="text-center text-xs text-gray-400 mt-6">
-          MediCare+ Admin Panel · Secure Access Only
+        <p className="mt-6 text-center text-xs text-gray-400">
+          MediCare+ · Secure & Private
         </p>
       </div>
     </div>

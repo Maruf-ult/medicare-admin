@@ -7,6 +7,7 @@ import { ApiResponse, PagedResponse } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
   AlertCircle,
+  Calendar,
   Eye,
   Loader2,
   Mail,
@@ -23,12 +24,16 @@ type BackendUser = {
   name: string;
   email: string;
   phone?: string | null;
+  gender?: string | null;
+  dateOfBirth?: string | null;
+  bio?: string | null;
   role: "Customer" | "Admin" | string;
   isActive: boolean;
   profileImageUrl?: string | null;
   createdAt: string;
   lastLoginAt?: string | null;
   totalOrders?: number;
+  totalSpent?: number;
 };
 
 type User = {
@@ -36,10 +41,14 @@ type User = {
   name: string;
   email: string;
   phone: string;
+  gender: string;
+  dateOfBirth?: string | null;
+  bio: string;
   role: string;
   joinDate: string;
   lastLoginAt?: string | null;
   totalOrders: number;
+  totalSpent: number;
   status: "active" | "inactive";
   profileImageUrl?: string | null;
 };
@@ -56,13 +65,27 @@ function normalizeUsers(
     name: user.name,
     email: user.email,
     phone: user.phone ?? "N/A",
+    gender: user.gender ?? "N/A",
+    dateOfBirth: user.dateOfBirth ?? null,
+    bio: user.bio ?? "N/A",
     role: user.role,
     joinDate: user.createdAt,
     lastLoginAt: user.lastLoginAt,
     totalOrders: user.totalOrders ?? 0,
+    totalSpent: user.totalSpent ?? 0,
     status: user.isActive ? "active" : "inactive",
     profileImageUrl: user.profileImageUrl,
   }));
+}
+
+function formatOptionalDate(date?: string | null) {
+  if (!date) return "N/A";
+
+  try {
+    return formatDate(date);
+  } catch {
+    return "N/A";
+  }
 }
 
 const statusColors: Record<User["status"], string> = {
@@ -225,6 +248,9 @@ export default function UsersPage() {
                   Phone
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
+                  Gender
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">
@@ -257,6 +283,10 @@ export default function UsersPage() {
                   </td>
 
                   <td className="px-6 py-4 text-gray-700">{user.phone}</td>
+
+                  <td className="px-6 py-4 text-sm text-gray-700">
+                    {user.gender}
+                  </td>
 
                   <td className="px-6 py-4">
                     <span
@@ -331,7 +361,7 @@ export default function UsersPage() {
 
       {selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-4xl rounded-md border border-gray-200 bg-white shadow-2xl">
+          <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-md border border-gray-200 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">
@@ -351,73 +381,110 @@ export default function UsersPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-[280px_1fr]">
-              <div className="rounded-md border border-gray-200 bg-gray-50 p-5">
-                <div className="mb-4 flex justify-center">
-                  <div className="flex h-24 w-24 items-center justify-center rounded-md bg-blue-100">
-                    {selectedUser.profileImageUrl ? (
-                      <img
-                        src={selectedUser.profileImageUrl}
-                        alt={selectedUser.name}
-                        className="h-24 w-24 rounded-md object-cover"
-                      />
-                    ) : (
-                      <UserCircle className="h-14 w-14 text-blue-600" />
-                    )}
+            <div className="max-h-[calc(90vh-140px)] overflow-y-auto px-6 py-5">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-[300px_1fr]">
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-5">
+                  <div className="mb-4 flex justify-center">
+                    <div className="flex h-24 w-24 items-center justify-center rounded-md bg-blue-100">
+                      {selectedUser.profileImageUrl ? (
+                        <img
+                          src={selectedUser.profileImageUrl}
+                          alt={selectedUser.name}
+                          className="h-24 w-24 rounded-md object-cover"
+                        />
+                      ) : (
+                        <UserCircle className="h-14 w-14 text-blue-600" />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="text-center">
+                    <h3 className="text-lg font-bold text-gray-900">
+                      {selectedUser.name}
+                    </h3>
+                    <p className="mt-1 break-all text-sm text-gray-500">
+                      {selectedUser.email}
+                    </p>
+
+                    <div className="mt-4 flex flex-wrap justify-center gap-2">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-medium ${
+                          selectedUser.role === "Admin"
+                            ? "bg-purple-100 text-purple-700"
+                            : "bg-blue-100 text-blue-700"
+                        }`}
+                      >
+                        {selectedUser.role}
+                      </span>
+
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-medium ${statusColors[selectedUser.status]}`}
+                      >
+                        {selectedUser.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 rounded-md border border-gray-200 bg-white p-4">
+                    <div className="flex items-start gap-2">
+                      <Calendar className="mt-0.5 h-4 w-4 text-blue-600" />
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                          Date of Birth
+                        </p>
+                        <p className="mt-1 text-sm font-bold text-gray-900">
+                          {formatOptionalDate(selectedUser.dateOfBirth)}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="text-center">
-                  <h3 className="text-lg font-bold text-gray-900">
-                    {selectedUser.name}
-                  </h3>
-                  <p className="mt-1 break-all text-sm text-gray-500">
-                    {selectedUser.email}
-                  </p>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <DetailRow label="User ID" value={selectedUser.id} />
+                    <DetailRow label="Name" value={selectedUser.name} />
+                    <DetailRow label="Email" value={selectedUser.email} />
+                    <DetailRow
+                      label="Phone"
+                      value={selectedUser.phone || "N/A"}
+                    />
+                    <DetailRow label="Gender" value={selectedUser.gender} />
+                    <DetailRow
+                      label="Date of Birth"
+                      value={formatOptionalDate(selectedUser.dateOfBirth)}
+                    />
+                    <DetailRow label="Role" value={selectedUser.role} />
+                    <DetailRow
+                      label="Joined"
+                      value={formatDate(selectedUser.joinDate)}
+                    />
+                    <DetailRow
+                      label="Last Login"
+                      value={
+                        selectedUser.lastLoginAt
+                          ? formatDate(selectedUser.lastLoginAt)
+                          : "N/A"
+                      }
+                    />
+                    <DetailRow
+                      label="Total Orders"
+                      value={selectedUser.totalOrders}
+                    />
+                    <DetailRow
+                      label="Total Spent"
+                      value={selectedUser.totalSpent}
+                    />
+                    <DetailRow label="Status" value={selectedUser.status} />
+                  </div>
 
-                  <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-medium ${
-                        selectedUser.role === "Admin"
-                          ? "bg-purple-100 text-purple-700"
-                          : "bg-blue-100 text-blue-700"
-                      }`}
-                    >
-                      {selectedUser.role}
-                    </span>
-
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-medium ${statusColors[selectedUser.status]}`}
-                    >
-                      {selectedUser.status}
-                    </span>
+                  <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
+                    <p className="text-sm text-gray-500">Bio</p>
+                    <p className="mt-2 whitespace-pre-line text-sm font-medium leading-6 text-gray-900">
+                      {selectedUser.bio || "N/A"}
+                    </p>
                   </div>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <DetailRow label="User ID" value={selectedUser.id} />
-                <DetailRow label="Name" value={selectedUser.name} />
-                <DetailRow label="Email" value={selectedUser.email} />
-                <DetailRow label="Phone" value={selectedUser.phone || "N/A"} />
-                <DetailRow label="Role" value={selectedUser.role} />
-                <DetailRow
-                  label="Joined"
-                  value={formatDate(selectedUser.joinDate)}
-                />
-                <DetailRow
-                  label="Last Login"
-                  value={
-                    selectedUser.lastLoginAt
-                      ? formatDate(selectedUser.lastLoginAt)
-                      : "N/A"
-                  }
-                />
-                <DetailRow
-                  label="Total Orders"
-                  value={selectedUser.totalOrders}
-                />
-                <DetailRow label="Status" value={selectedUser.status} />
               </div>
             </div>
 

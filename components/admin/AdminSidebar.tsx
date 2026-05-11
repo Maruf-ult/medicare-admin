@@ -9,6 +9,7 @@ import {
   ClipboardList,
   FolderTree,
   LayoutDashboard,
+  CreditCard,
   Package,
   Pill,
   Users,
@@ -48,6 +49,11 @@ const navItems = [
     href: "/dashboard/orders",
     icon: ClipboardList,
   },
+  {
+  label: "Payments",
+  href: "/dashboard/payments",
+  icon: CreditCard,
+},
   {
     label: "Prescriptions",
     href: "/dashboard/prescriptions",
