@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { ApiResponse, PagedResponse } from "@/types";
@@ -16,28 +16,10 @@ import {
   X,
 } from "lucide-react";
 
-type Category = {
-  id: number;
-  name: string;
-  slug: string;
-  imageUrl?: string | null;
-  description?: string | null;
-  parentCategoryId?: number | null;
-  sortOrder: number;
-  isActive: boolean;
-  subCategories: Category[];
-};
-
-type Brand = {
-  id: number;
-  name: string;
-  slug?: string;
-};
-
 type ProductFilters = {
   search: string;
-  categoryId: string;
-  brandId: string;
+  category: string;
+  brand: string;
   requiresPrescription: string;
   isFeatured: string;
   sortBy: string;
@@ -52,8 +34,8 @@ function getFiltersFromSearchParams(
 ): ProductFilters {
   return {
     search: searchParams.get("search") ?? "",
-    categoryId: searchParams.get("categoryId") ?? "",
-    brandId: searchParams.get("brandId") ?? "",
+    category: searchParams.get("category") ?? "",
+    brand: searchParams.get("brand") ?? "",
     requiresPrescription: searchParams.get("rx") ?? "",
     isFeatured: searchParams.get("featured") ?? "",
     sortBy: searchParams.get("sortBy") ?? "",
@@ -61,12 +43,27 @@ function getFiltersFromSearchParams(
 }
 
 export default function ShopPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto flex min-h-[320px] max-w-7xl items-center justify-center px-4 py-16">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Loading shop…
+          </div>
+        </div>
+      }
+    >
+      <ShopPageContent />
+    </Suspense>
+  );
+}
+
+function ShopPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
   const [products, setProducts] = useState<ClientProduct[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [brands, setBrands] = useState<Brand[]>([]);
 
   const [filters, setFilters] = useState<ProductFilters>(() =>
     getFiltersFromSearchParams(searchParams)
@@ -86,12 +83,12 @@ export default function ShopPage() {
       productParams.search = currentFilters.search.trim();
     }
 
-    if (currentFilters.categoryId) {
-      productParams.categoryId = Number(currentFilters.categoryId);
+    if (currentFilters.category.trim()) {
+      productParams.category = currentFilters.category.trim();
     }
 
-    if (currentFilters.brandId) {
-      productParams.brandId = Number(currentFilters.brandId);
+    if (currentFilters.brand.trim()) {
+      productParams.brand = currentFilters.brand.trim();
     }
 
     if (currentFilters.requiresPrescription) {
@@ -117,45 +114,16 @@ export default function ShopPage() {
 
       const productParams = buildProductParams(currentFilters);
 
-      const [productsResponse, categoriesResponse, brandsResponse] =
-        await Promise.all([
-          api.get<ApiResponse<ClientProduct[] | PagedResponse<ClientProduct>>>(
-            "/products",
-            {
-              params: productParams,
-            }
-          ),
-
-          api.get<ApiResponse<Category[]>>("/categories"),
-
-          api.get<ApiResponse<Brand[] | PagedResponse<Brand>>>("/brands", {
-            params: {
-              pageNumber: 1,
-              pageSize: 100,
-            },
-          }),
-        ]);
+      const productsResponse = await api.get<
+        ApiResponse<ClientProduct[] | PagedResponse<ClientProduct>>
+      >("/products", {
+        params: productParams,
+      });
 
       if (productsResponse.data.success && productsResponse.data.data) {
         setProducts(extractItems(productsResponse.data.data));
       } else {
         setProducts([]);
-      }
-
-      if (categoriesResponse.data.success && categoriesResponse.data.data) {
-        const activeCategories = categoriesResponse.data.data
-          .filter((category) => category.isActive)
-          .sort((a, b) => a.sortOrder - b.sortOrder);
-
-        setCategories(activeCategories);
-      } else {
-        setCategories([]);
-      }
-
-      if (brandsResponse.data.success && brandsResponse.data.data) {
-        setBrands(extractItems(brandsResponse.data.data));
-      } else {
-        setBrands([]);
       }
     } catch (error) {
       console.error("Failed to load shop data:", error);
@@ -187,8 +155,8 @@ export default function ShopPage() {
     const params = new URLSearchParams();
 
     if (filters.search.trim()) params.set("search", filters.search.trim());
-    if (filters.categoryId) params.set("categoryId", filters.categoryId);
-    if (filters.brandId) params.set("brandId", filters.brandId);
+    if (filters.category.trim()) params.set("category", filters.category.trim());
+    if (filters.brand.trim()) params.set("brand", filters.brand.trim());
     if (filters.requiresPrescription) {
       params.set("rx", filters.requiresPrescription);
     }
@@ -291,40 +259,28 @@ export default function ShopPage() {
               <label className="mb-2 block text-sm font-semibold text-gray-700">
                 Category
               </label>
-              <select
-                value={filters.categoryId}
+              <input
+                value={filters.category}
                 onChange={(event) =>
-                  updateFilter("categoryId", event.target.value)
+                  updateFilter("category", event.target.value)
                 }
+                placeholder="Partial match, e.g. Antibiotics"
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All Categories</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             <div>
               <label className="mb-2 block text-sm font-semibold text-gray-700">
                 Brand
               </label>
-              <select
-                value={filters.brandId}
+              <input
+                value={filters.brand}
                 onChange={(event) =>
-                  updateFilter("brandId", event.target.value)
+                  updateFilter("brand", event.target.value)
                 }
+                placeholder="Partial match, e.g. Square"
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All Brands</option>
-                {brands.map((brand) => (
-                  <option key={brand.id} value={brand.id}>
-                    {brand.name}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             <div>

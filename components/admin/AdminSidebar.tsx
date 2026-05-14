@@ -1,21 +1,19 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
 import {
   Bell,
   Boxes,
-  Building2,
   ClipboardList,
-  FolderTree,
-  LayoutDashboard,
   CreditCard,
+  LayoutDashboard,
   Package,
   Pill,
   Users,
   X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 type AdminSidebarProps = {
   isCollapsed: boolean;
@@ -30,19 +28,9 @@ const navItems = [
     icon: LayoutDashboard,
   },
   {
-    label: "Products",
-    href: "/dashboard/products",
+    label: "Catalog",
+    href: "/dashboard/catalog",
     icon: Pill,
-  },
-  {
-    label: "Categories",
-    href: "/dashboard/categories",
-    icon: FolderTree,
-  },
-  {
-    label: "Brands",
-    href: "/dashboard/brands",
-    icon: Building2,
   },
   {
     label: "Orders",
@@ -50,10 +38,10 @@ const navItems = [
     icon: ClipboardList,
   },
   {
-  label: "Payments",
-  href: "/dashboard/payments",
-  icon: CreditCard,
-},
+    label: "Payments",
+    href: "/dashboard/payments",
+    icon: CreditCard,
+  },
   {
     label: "Prescriptions",
     href: "/dashboard/prescriptions",
@@ -89,13 +77,13 @@ export default function AdminSidebar({
         "fixed left-0 top-0 z-50 h-screen border-r border-gray-200 bg-white transition-all duration-300 lg:sticky lg:z-20",
         isCollapsed ? "lg:w-20" : "lg:w-72",
         isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
-        "w-72"
+        "w-72",
       )}
     >
       <div
         className={cn(
           "flex h-16 items-center border-b border-gray-200 px-4",
-          isCollapsed ? "lg:justify-center" : "justify-between"
+          isCollapsed ? "lg:justify-center" : "justify-between",
         )}
       >
         <Link
@@ -148,7 +136,7 @@ export default function AdminSidebar({
                 isCollapsed ? "lg:justify-center lg:px-0" : "gap-3 px-4",
                 isActive
                   ? "bg-blue-50 text-blue-700"
-                  : "text-gray-700 hover:bg-gray-50 hover:text-blue-700"
+                  : "text-gray-700 hover:bg-gray-50 hover:text-blue-700",
               )}
             >
               <Icon className="h-5 w-5 shrink-0" />

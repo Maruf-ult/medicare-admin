@@ -1,7 +1,7 @@
 "use client";
 
 import api from "@/lib/api";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, getProductStock } from "@/lib/utils";
 import { ApiResponse } from "@/types";
 import { CheckCircle2, Heart, Pill, Plus } from "lucide-react";
 import Link from "next/link";
@@ -10,7 +10,7 @@ import { toast } from "sonner";
 export type ClientProduct = {
   id: number;
   name: string;
-  slug: string;
+  slug?: string;
   sku?: string;
   shortDescription?: string | null;
   price: number;
@@ -20,17 +20,13 @@ export type ClientProduct = {
   isPrescriptionApproved?: boolean;
   isFeatured?: boolean;
   genericName?: string | null;
-  brand?: {
-    id: number;
-    name: string;
-  } | null;
+  brand?: string | null;
   brandName?: string | null;
-  category?: {
-    id: number;
-    name: string;
-  } | null;
+  category?: string | null;
   categoryName?: string | null;
   imageUrls?: string[];
+  /** Alternate field name from some API versions */
+  stockQuantity?: number;
 };
 
 type ProductCardProps = {
@@ -38,7 +34,11 @@ type ProductCardProps = {
 };
 
 export default function ProductCard({ product }: ProductCardProps) {
-  const brandName = product.brand?.name ?? product.brandName ?? "MediCare";
+  const brandName =
+    (typeof product.brand === "string" ? product.brand : null) ??
+    product.brandName ??
+    "MediCare";
+  const stock = getProductStock(product);
   const sellingPrice = (product.discountPrice ?? product.price) || 0;
 
   const hasDiscount =
@@ -49,8 +49,12 @@ export default function ProductCard({ product }: ProductCardProps) {
   const isRxLocked =
     product.requiresPrescription && !product.isPrescriptionApproved;
 
+  const productHref = product.slug?.trim()
+    ? `/products/${product.slug}`
+    : "/shop";
+
   const handleAddToCart = async () => {
-    if (product.stock <= 0) {
+    if (stock <= 0) {
       toast.error("This product is out of stock");
       return;
     }
@@ -97,7 +101,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   return (
     <div className="group overflow-hidden rounded-xl border border-gray-200 bg-white transition hover:-translate-y-0.5 hover:border-blue-100 hover:shadow-md">
       <div className="relative flex h-40 items-center justify-center bg-gray-50">
-        <Link href={`/products/${product.slug}`} className="h-full w-full">
+        <Link href={productHref} className="h-full w-full">
           {product.imageUrls && product.imageUrls.length > 0 ? (
             <img
               src={product.imageUrls[0]}
@@ -154,7 +158,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           {brandName}
         </p>
 
-        <Link href={`/products/${product.slug}`}>
+        <Link href={productHref}>
           <h3 className="line-clamp-2 min-h-[42px] text-sm font-bold leading-5 text-gray-900 hover:text-blue-600">
             {product.name}
           </h3>
@@ -191,15 +195,15 @@ export default function ProductCard({ product }: ProductCardProps) {
           <button
             type="button"
             onClick={handleAddToCart}
-            disabled={product.stock <= 0 || isRxLocked}
+            disabled={stock <= 0 || isRxLocked}
             className={`flex h-9 w-9 items-center justify-center rounded-lg text-white transition ${
-              product.stock <= 0 || isRxLocked
+              stock <= 0 || isRxLocked
                 ? "cursor-not-allowed bg-gray-300"
                 : "bg-blue-600 hover:bg-blue-700"
             }`}
             aria-label="Add to cart"
             title={
-              product.stock <= 0
+              stock <= 0
                 ? "Out of stock"
                 : isRxLocked
                   ? "Prescription approval required"

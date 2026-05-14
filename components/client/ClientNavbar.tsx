@@ -90,7 +90,7 @@ export default function ClientNavbar() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search..."
-                className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400"
+                className="min-w-0 flex-1  bg-transparent px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400"
               />
 
               <button
@@ -98,7 +98,7 @@ export default function ClientNavbar() {
                 className="flex h-full items-center justify-center bg-blue-600 px-3 text-white hover:bg-blue-700"
                 aria-label="Search"
               >
-                <Search className="h-4 w-4" />
+                <Search className="h-8.5 w-4" />
               </button>
             </form>
           </div>

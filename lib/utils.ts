@@ -52,3 +52,31 @@ export function getInitials(name: string): string {
     .toUpperCase()
     .substring(0, 2);
 }
+// ── Product field helpers (API may use stockQuantity / SKU) ─
+export function getProductStock(p: {
+  stock?: number;
+  stockQuantity?: number;
+}): number {
+  const n = p.stockQuantity ?? p.stock ?? 0;
+  return Number.isFinite(n) ? n : 0;
+}
+
+export function getProductSku(p: {
+  sku?: string | null;
+  SKU?: string | null;
+}): string {
+  const v = p.sku ?? p.SKU;
+  const s = v == null ? "" : String(v).trim();
+  return s || "N/A";
+}
+
+// ── Get image url ─────────────────────────────────────────
+export function getImageUrl(path: string | null | undefined): string {
+  if (!path) return "";
+  if (path.startsWith("http")) return path;
+  
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
+  const rootUrl = baseUrl.replace(/\/api$/, "");
+  
+  return path.startsWith("/") ? `${rootUrl}${path}` : `${rootUrl}/${path}`;
+}

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
-import { ApiResponse, PagedResponse } from "@/types";
+import { ApiResponse } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
   AlertCircle,
@@ -14,28 +14,23 @@ import {
   Save,
 } from "lucide-react";
 import { toast } from "sonner";
-
-type Category = {
-  id: number;
-  name: string;
-};
-
-type Brand = {
-  id: number;
-  name: string;
-};
+import { FileUploadDropzone } from "@/components/ui/FileUploadDropzone";
+import { getProductStock } from "@/lib/utils";
 
 type ProductResponse = {
   id: number;
   name: string;
+  lowStockThreshold?: number;
   slug: string;
-  sku?: string;
+  sku?: string | null;
+  SKU?: string | null;
   description?: string | null;
   shortDescription?: string | null;
   price: number;
   discountPrice?: number | null;
   stock: number;
-  isLowStock?: boolean;
+  stockQuantity?: number;
+  isLowStock?: boolean; 
   requiresPrescription: boolean;
   dosageForm?: string | null;
   strength?: string | null;
@@ -52,16 +47,18 @@ type ProductResponse = {
   childSafetyInfo?: string | null;
   isActive: boolean;
   isFeatured: boolean;
-  category?: Category | null;
-  brand?: Brand | null;
+  category?: string | null;
+  brand?: string | null;
+  imageUrls?: string[];
 };
 
 type ProductRequest = {
   name: string;
+  sku?: string;
   description?: string;
   shortDescription?: string;
-  categoryId: number;
-  brandId: number;
+  category: string;
+  brand: string;
   price: number;
   discountPrice?: number | null;
   stock: number;
@@ -82,18 +79,16 @@ type ProductRequest = {
   childSafetyInfo?: string;
   isActive: boolean;
   isFeatured: boolean;
+  imageUrls: string[];
 };
-
-function extractItems<T>(data: T[] | PagedResponse<T>): T[] {
-  return Array.isArray(data) ? data : data.items ?? [];
-}
 
 const initialForm: ProductRequest = {
   name: "",
+  sku: "",
   description: "",
   shortDescription: "",
-  categoryId: 0,
-  brandId: 0,
+  category: "",
+  brand: "",
   price: 0,
   discountPrice: null,
   stock: 0,
@@ -114,19 +109,22 @@ const initialForm: ProductRequest = {
   childSafetyInfo: "",
   isActive: true,
   isFeatured: false,
+  imageUrls: [],
 };
 
 function productToForm(product: ProductResponse): ProductRequest {
+  const skuVal = product.sku ?? product.SKU ?? "";
   return {
     name: product.name ?? "",
+    sku: skuVal ? String(skuVal) : "",
     description: product.description ?? "",
     shortDescription: product.shortDescription ?? "",
-    categoryId: product.category?.id ?? 0,
-    brandId: product.brand?.id ?? 0,
+    category: product.category ?? "",
+    brand: product.brand ?? "",
+    lowStockThreshold: product.lowStockThreshold ?? 10,
     price: product.price ?? 0,
     discountPrice: product.discountPrice ?? null,
-    stock: product.stock ?? 0,
-    lowStockThreshold: 10,
+    stock: getProductStock(product),
     requiresPrescription: product.requiresPrescription ?? false,
     dosageForm: product.dosageForm ?? "",
     strength: product.strength ?? "",
@@ -143,6 +141,7 @@ function productToForm(product: ProductResponse): ProductRequest {
     childSafetyInfo: product.childSafetyInfo ?? "",
     isActive: product.isActive ?? true,
     isFeatured: product.isFeatured ?? false,
+    imageUrls: product.imageUrls?.length ? [...product.imageUrls] : [],
   };
 }
 
@@ -154,8 +153,6 @@ export default function EditProductPage() {
 
   const [form, setForm] = useState<ProductRequest>(initialForm);
   const [productName, setProductName] = useState("");
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [brands, setBrands] = useState<Brand[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -171,27 +168,9 @@ export default function EditProductPage() {
       setIsLoading(true);
       setErrorMessage(null);
 
-      const [productResponse, categoryResponse, brandResponse] =
-        await Promise.all([
-          api.get<ApiResponse<ProductResponse>>(`/products/id/${productId}`),
-
-          api.get<ApiResponse<Category[] | PagedResponse<Category>>>(
-            "/categories",
-            {
-              params: {
-                pageNumber: 1,
-                pageSize: 100,
-              },
-            }
-          ),
-
-          api.get<ApiResponse<Brand[] | PagedResponse<Brand>>>("/brands", {
-            params: {
-              pageNumber: 1,
-              pageSize: 100,
-            },
-          }),
-        ]);
+      const productResponse = await api.get<ApiResponse<ProductResponse>>(
+        `/products/id/${productId}`,
+      );
 
       if (productResponse.data.success && productResponse.data.data) {
         const product = productResponse.data.data;
@@ -199,14 +178,6 @@ export default function EditProductPage() {
         setForm(productToForm(product));
       } else {
         setErrorMessage(productResponse.data.message || "Product not found.");
-      }
-
-      if (categoryResponse.data.success && categoryResponse.data.data) {
-        setCategories(extractItems(categoryResponse.data.data));
-      }
-
-      if (brandResponse.data.success && brandResponse.data.data) {
-        setBrands(extractItems(brandResponse.data.data));
       }
     } catch (error) {
       console.error("Failed to load product edit data:", error);
@@ -237,13 +208,13 @@ export default function EditProductPage() {
       return false;
     }
 
-    if (!form.categoryId) {
-      toast.error("Please select a category");
+    if (!form.category.trim()) {
+      toast.error("Please enter a category");
       return false;
     }
 
-    if (!form.brandId) {
-      toast.error("Please select a brand");
+    if (!form.brand.trim()) {
+      toast.error("Please enter a brand");
       return false;
     }
 
@@ -275,9 +246,11 @@ export default function EditProductPage() {
   };
 
   const cleanPayload = (): ProductRequest => {
+    const skuTrim = form.sku?.trim();
     return {
       ...form,
       name: form.name.trim(),
+      sku: skuTrim || undefined,
       description: form.description?.trim() || undefined,
       shortDescription: form.shortDescription?.trim() || undefined,
       discountPrice:
@@ -297,6 +270,9 @@ export default function EditProductPage() {
       storageInfo: form.storageInfo?.trim() || undefined,
       pregnancyWarning: form.pregnancyWarning?.trim() || undefined,
       childSafetyInfo: form.childSafetyInfo?.trim() || undefined,
+      imageUrls: form.imageUrls.filter(Boolean),
+      category: form.category.trim(),
+      brand: form.brand.trim(),
     };
   };
 
@@ -391,6 +367,13 @@ export default function EditProductPage() {
             />
 
             <InputField
+              label="SKU"
+              value={form.sku ?? ""}
+              onChange={(value) => updateField("sku", value)}
+              placeholder="Leave blank to keep auto-generated SKU"
+            />
+
+            <InputField
               label="Generic Name"
               value={form.genericName ?? ""}
               onChange={(value) => updateField("genericName", value)}
@@ -401,40 +384,30 @@ export default function EditProductPage() {
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Category *
               </label>
-              <select
-                value={form.categoryId}
+              <input
+                value={form.category}
                 onChange={(event) =>
-                  updateField("categoryId", Number(event.target.value))
+                  updateField("category", event.target.value)
                 }
+                maxLength={200}
+                placeholder="e.g. Antibiotics"
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value={0}>Select category</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 Brand *
               </label>
-              <select
-                value={form.brandId}
+              <input
+                value={form.brand}
                 onChange={(event) =>
-                  updateField("brandId", Number(event.target.value))
+                  updateField("brand", event.target.value)
                 }
+                maxLength={200}
+                placeholder="e.g. Square"
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value={0}>Select brand</option>
-                {brands.map((brand) => (
-                  <option key={brand.id} value={brand.id}>
-                    {brand.name}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             <div className="md:col-span-2">
@@ -621,6 +594,30 @@ export default function EditProductPage() {
               />
             </div>
           </div>
+        </div>
+
+        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+          <h2 className="mb-6 text-lg font-bold text-gray-900">
+            Product Image
+          </h2>
+          <FileUploadDropzone
+            folder="products"
+            value={form.imageUrls[0]}
+            onChange={(url) => {
+              const next = Array.isArray(url)
+                ? url.filter((u): u is string => typeof u === "string")
+                : url
+                  ? [url]
+                  : [];
+              updateField("imageUrls", next);
+            }}
+            accept="image/*"
+            maxSize={5}
+            label=""
+          />
+          <p className="mt-3 text-sm text-gray-500">
+            Upload or replace the primary product image (optional).
+          </p>
         </div>
 
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">

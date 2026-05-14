@@ -30,6 +30,7 @@ type PrescriptionItem = {
   id: number;
   productId: number;
   productName: string;
+  productSlug?: string | null;
   dosageForm?: string | null;
   strength?: string | null;
   quantity: number;
@@ -509,7 +510,11 @@ export default function MyPrescriptionDetailsPage() {
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <Link
-                          href={`/products/${item.productId}`}
+                          href={
+                            item.productSlug?.trim()
+                              ? `/products/${item.productSlug}`
+                              : "/shop"
+                          }
                           className="font-black text-gray-900 hover:text-blue-600"
                         >
                           {item.productName}

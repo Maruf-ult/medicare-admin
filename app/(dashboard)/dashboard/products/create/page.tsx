@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
-import { ApiResponse, PagedResponse } from "@/types";
+import { ApiResponse } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
   AlertCircle,
@@ -11,26 +11,20 @@ import {
   Loader2,
   PackagePlus,
   Save,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-
-type Category = {
-  id: number;
-  name: string;
-};
-
-type Brand = {
-  id: number;
-  name: string;
-};
+import { FileUploadDropzone } from "@/components/ui/FileUploadDropzone";
 
 type ProductRequest = {
   name: string;
+  sku?: string;
   description?: string;
   shortDescription?: string;
-  categoryId: number;
-  brandId: number;
+  category: string;
+  brand: string;
   price: number;
   discountPrice?: number | null;
   stock: number;
@@ -51,18 +45,16 @@ type ProductRequest = {
   childSafetyInfo?: string;
   isActive: boolean;
   isFeatured: boolean;
+  imageUrls: string[];
 };
-
-function extractItems<T>(data: T[] | PagedResponse<T>): T[] {
-  return Array.isArray(data) ? data : data.items ?? [];
-}
 
 const initialForm: ProductRequest = {
   name: "",
+  sku: "",
   description: "",
   shortDescription: "",
-  categoryId: 0,
-  brandId: 0,
+  category: "",
+  brand: "",
   price: 0,
   discountPrice: null,
   stock: 0,
@@ -83,59 +75,17 @@ const initialForm: ProductRequest = {
   childSafetyInfo: "",
   isActive: true,
   isFeatured: false,
+  imageUrls: [],
 };
 
 export default function CreateProductPage() {
   const router = useRouter();
 
   const [form, setForm] = useState<ProductRequest>(initialForm);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [brands, setBrands] = useState<Brand[]>([]);
-  const [isLoadingOptions, setIsLoadingOptions] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const getOptions = async () => {
-    try {
-      setIsLoadingOptions(true);
-      setErrorMessage(null);
-
-      const [categoryResponse, brandResponse] = await Promise.all([
-        api.get<ApiResponse<Category[] | PagedResponse<Category>>>(
-          "/categories",
-          {
-            params: {
-              pageNumber: 1,
-              pageSize: 100,
-            },
-          }
-        ),
-        api.get<ApiResponse<Brand[] | PagedResponse<Brand>>>("/brands", {
-          params: {
-            pageNumber: 1,
-            pageSize: 100,
-          },
-        }),
-      ]);
-
-      if (categoryResponse.data.success && categoryResponse.data.data) {
-        setCategories(extractItems(categoryResponse.data.data));
-      }
-
-      if (brandResponse.data.success && brandResponse.data.data) {
-        setBrands(extractItems(brandResponse.data.data));
-      }
-    } catch (error) {
-      console.error("Failed to load categories/brands:", error);
-      setErrorMessage("Failed to load categories and brands.");
-    } finally {
-      setIsLoadingOptions(false);
-    }
-  };
-
-  useEffect(() => {
-    getOptions();
-  }, []);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const updateField = <K extends keyof ProductRequest>(
     key: K,
@@ -153,13 +103,13 @@ export default function CreateProductPage() {
       return false;
     }
 
-    if (!form.categoryId) {
-      toast.error("Please select a category");
+    if (!form.category.trim()) {
+      toast.error("Please enter a category");
       return false;
     }
 
-    if (!form.brandId) {
-      toast.error("Please select a brand");
+    if (!form.brand.trim()) {
+      toast.error("Please enter a brand");
       return false;
     }
 
@@ -186,15 +136,19 @@ export default function CreateProductPage() {
   };
 
   const cleanPayload = (): ProductRequest => {
+    const skuTrim = form.sku?.trim();
     return {
       ...form,
       name: form.name.trim(),
+      sku: skuTrim || undefined,
       description: form.description?.trim() || undefined,
       shortDescription: form.shortDescription?.trim() || undefined,
       discountPrice:
         form.discountPrice === null || Number.isNaN(form.discountPrice)
           ? null
           : form.discountPrice,
+      category: form.category.trim(),
+      brand: form.brand.trim(),
       dosageForm: form.dosageForm?.trim() || undefined,
       strength: form.strength?.trim() || undefined,
       packSize: form.packSize?.trim() || undefined,
@@ -240,19 +194,9 @@ export default function CreateProductPage() {
     }
   };
 
-  if (isLoadingOptions) {
-    return (
-      <div className="flex min-h-[500px] items-center justify-center">
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          Loading form options...
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div>
+
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="mb-2 flex items-center gap-2">
@@ -284,348 +228,272 @@ export default function CreateProductPage() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-6 text-lg font-bold text-gray-900">
-            Basic Information
-          </h2>
+        {/* Basic Info & Images */}
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-8">
+            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h2 className="mb-6 text-lg font-bold text-gray-900">Basic Information</h2>
 
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Product Name *
-              </label>
-              <input
-                value={form.name}
-                onChange={(event) => updateField("name", event.target.value)}
-                placeholder="Napa Extend 665mg"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Product Name *</label>
+                  <input
+                    value={form.name}
+                    onChange={(event) => updateField("name", event.target.value)}
+                    placeholder="e.g. Napa Extend 665mg"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">SKU</label>
+                  <input
+                    value={form.sku ?? ""}
+                    onChange={(event) => updateField("sku", event.target.value)}
+                    placeholder="Optional — leave blank if the server auto-generates SKU"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Category *</label>
+                  <input
+                    value={form.category}
+                    onChange={(event) => updateField("category", event.target.value)}
+                    placeholder="e.g. Antibiotics, OTC, Baby care"
+                    maxLength={200}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Brand *</label>
+                  <input
+                    value={form.brand}
+                    onChange={(event) => updateField("brand", event.target.value)}
+                    placeholder="e.g. Square, Beximco"
+                    maxLength={200}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Short Description</label>
+                  <input
+                    value={form.shortDescription}
+                    onChange={(event) => updateField("shortDescription", event.target.value)}
+                    placeholder="Short summary shown in product cards"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Full Description</label>
+                  <textarea
+                    value={form.description}
+                    onChange={(event) => updateField("description", event.target.value)}
+                    rows={4}
+                    placeholder="Full product description..."
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h2 className="mb-6 text-lg font-bold text-gray-900">Price & Stock</h2>
+
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Price *</label>
+                  <input
+                    type="number"
+                    value={form.price}
+                    onChange={(event) => updateField("price", Number(event.target.value))}
+                    min={0}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Discount Price</label>
+                  <input
+                    type="number"
+                    value={form.discountPrice ?? ""}
+                    onChange={(event) =>
+                      updateField(
+                        "discountPrice",
+                        event.target.value === "" ? null : Number(event.target.value)
+                      )
+                    }
+                    min={0}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Stock *</label>
+                  <input
+                    type="number"
+                    value={form.stock}
+                    onChange={(event) => updateField("stock", Number(event.target.value))}
+                    min={0}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Low Stock Alert</label>
+                  <input
+                    type="number"
+                    value={form.lowStockThreshold}
+                    onChange={(event) => updateField("lowStockThreshold", Number(event.target.value))}
+                    min={0}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+                <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-4 cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={form.requiresPrescription}
+                    onChange={(event) => updateField("requiresPrescription", event.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Requires Prescription</span>
+                </label>
+
+                <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-4 cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={form.isFeatured}
+                    onChange={(event) => updateField("isFeatured", event.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Featured Product</span>
+                </label>
+
+                <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-4 cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={form.isActive}
+                    onChange={(event) => updateField("isActive", event.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Active Status</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-1">
+            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sticky top-6">
+              <h2 className="mb-6 text-lg font-bold text-gray-900">Product Image</h2>
+              <FileUploadDropzone
+                folder="products"
+                value={form.imageUrls[0]}
+                onChange={(url) => {
+                  const next = Array.isArray(url)
+                    ? url.filter((u): u is string => typeof u === "string")
+                    : url
+                      ? [url]
+                      : [];
+                  updateField("imageUrls", next);
+                }}
+                accept="image/*"
+                maxSize={5}
+                label=""
               />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Generic Name
-              </label>
-              <input
-                value={form.genericName}
-                onChange={(event) =>
-                  updateField("genericName", event.target.value)
-                }
-                placeholder="Paracetamol"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Category *
-              </label>
-              <select
-                value={form.categoryId}
-                onChange={(event) =>
-                  updateField("categoryId", Number(event.target.value))
-                }
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value={0}>Select category</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Brand *
-              </label>
-              <select
-                value={form.brandId}
-                onChange={(event) =>
-                  updateField("brandId", Number(event.target.value))
-                }
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value={0}>Select brand</option>
-                {brands.map((brand) => (
-                  <option key={brand.id} value={brand.id}>
-                    {brand.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Short Description
-              </label>
-              <input
-                value={form.shortDescription}
-                onChange={(event) =>
-                  updateField("shortDescription", event.target.value)
-                }
-                placeholder="Short summary shown in product cards"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Description
-              </label>
-              <textarea
-                value={form.description}
-                onChange={(event) =>
-                  updateField("description", event.target.value)
-                }
-                rows={4}
-                placeholder="Full product description"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <p className="mt-4 text-sm text-gray-500 text-center">
+                Upload a product image (optional).
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-6 text-lg font-bold text-gray-900">
-            Price & Stock
-          </h2>
-
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-4">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Price *
-              </label>
-              <input
-                type="number"
-                value={form.price}
-                onChange={(event) =>
-                  updateField("price", Number(event.target.value))
-                }
-                min={0}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+        {/* Advanced Settings Toggle */}
+        <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="w-full flex items-center justify-between p-6 bg-gray-50 hover:bg-gray-100 transition-colors"
+          >
+            <div className="flex flex-col text-left">
+              <h2 className="text-lg font-bold text-gray-900">Advanced Medical Information</h2>
+              <p className="text-sm text-gray-500">Optional fields for detailed medicinal specifications</p>
             </div>
+            {showAdvanced ? (
+              <ChevronUp className="h-6 w-6 text-gray-400" />
+            ) : (
+              <ChevronDown className="h-6 w-6 text-gray-400" />
+            )}
+          </button>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Discount Price
-              </label>
-              <input
-                type="number"
-                value={form.discountPrice ?? ""}
-                onChange={(event) =>
-                  updateField(
-                    "discountPrice",
-                    event.target.value === "" ? null : Number(event.target.value)
-                  )
-                }
-                min={0}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+          {showAdvanced && (
+            <div className="p-6 border-t border-gray-200">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-3 mb-8">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Generic Name</label>
+                  <input
+                    value={form.genericName}
+                    onChange={(event) => updateField("genericName", event.target.value)}
+                    placeholder="e.g. Paracetamol"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Dosage Form</label>
+                  <input
+                    value={form.dosageForm}
+                    onChange={(event) => updateField("dosageForm", event.target.value)}
+                    placeholder="e.g. Tablet, Syrup"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Strength</label>
+                  <input
+                    value={form.strength}
+                    onChange={(event) => updateField("strength", event.target.value)}
+                    placeholder="e.g. 500mg"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Pack Size</label>
+                  <input
+                    value={form.packSize}
+                    onChange={(event) => updateField("packSize", event.target.value)}
+                    placeholder="e.g. 10 tablets"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">Active Ingredient</label>
+                  <input
+                    value={form.activeIngredient}
+                    onChange={(event) => updateField("activeIngredient", event.target.value)}
+                    placeholder="e.g. Paracetamol"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                <TextAreaField label="Indications" value={form.indications ?? ""} onChange={(value) => updateField("indications", value)} />
+                <TextAreaField label="Side Effects" value={form.sideEffects ?? ""} onChange={(value) => updateField("sideEffects", value)} />
+                <TextAreaField label="Warnings" value={form.warnings ?? ""} onChange={(value) => updateField("warnings", value)} />
+                <TextAreaField label="Contraindications" value={form.contraindications ?? ""} onChange={(value) => updateField("contraindications", value)} />
+                <TextAreaField label="Storage Info" value={form.storageInfo ?? ""} onChange={(value) => updateField("storageInfo", value)} />
+                <TextAreaField label="Pregnancy Warning" value={form.pregnancyWarning ?? ""} onChange={(value) => updateField("pregnancyWarning", value)} />
+                <div className="md:col-span-2">
+                  <TextAreaField label="Child Safety Info" value={form.childSafetyInfo ?? ""} onChange={(value) => updateField("childSafetyInfo", value)} />
+                </div>
+              </div>
             </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Stock *
-              </label>
-              <input
-                type="number"
-                value={form.stock}
-                onChange={(event) =>
-                  updateField("stock", Number(event.target.value))
-                }
-                min={0}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Low Stock Threshold
-              </label>
-              <input
-                type="number"
-                value={form.lowStockThreshold}
-                onChange={(event) =>
-                  updateField("lowStockThreshold", Number(event.target.value))
-                }
-                min={0}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-            <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-4">
-              <input
-                type="checkbox"
-                checked={form.requiresPrescription}
-                onChange={(event) =>
-                  updateField("requiresPrescription", event.target.checked)
-                }
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              <span className="text-sm font-medium text-gray-700">
-                Requires Prescription
-              </span>
-            </label>
-
-            <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-4">
-              <input
-                type="checkbox"
-                checked={form.isFeatured}
-                onChange={(event) =>
-                  updateField("isFeatured", event.target.checked)
-                }
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              <span className="text-sm font-medium text-gray-700">
-                Featured Product
-              </span>
-            </label>
-
-            <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-4">
-              <input
-                type="checkbox"
-                checked={form.isActive}
-                onChange={(event) =>
-                  updateField("isActive", event.target.checked)
-                }
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              <span className="text-sm font-medium text-gray-700">
-                Active Product
-              </span>
-            </label>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-6 text-lg font-bold text-gray-900">
-            Medicine Details
-          </h2>
-
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Dosage Form
-              </label>
-              <input
-                value={form.dosageForm}
-                onChange={(event) =>
-                  updateField("dosageForm", event.target.value)
-                }
-                placeholder="Tablet, Syrup, Capsule"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Strength
-              </label>
-              <input
-                value={form.strength}
-                onChange={(event) => updateField("strength", event.target.value)}
-                placeholder="500mg"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Pack Size
-              </label>
-              <input
-                value={form.packSize}
-                onChange={(event) => updateField("packSize", event.target.value)}
-                placeholder="10 tablets"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Manufacturer
-              </label>
-              <input
-                value={form.manufacturer}
-                onChange={(event) =>
-                  updateField("manufacturer", event.target.value)
-                }
-                placeholder="Square Pharmaceuticals"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Active Ingredient
-              </label>
-              <input
-                value={form.activeIngredient}
-                onChange={(event) =>
-                  updateField("activeIngredient", event.target.value)
-                }
-                placeholder="Paracetamol"
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-6 text-lg font-bold text-gray-900">
-            Medical Information
-          </h2>
-
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <TextAreaField
-              label="Indications"
-              value={form.indications ?? ""}
-              onChange={(value) => updateField("indications", value)}
-            />
-
-            <TextAreaField
-              label="Side Effects"
-              value={form.sideEffects ?? ""}
-              onChange={(value) => updateField("sideEffects", value)}
-            />
-
-            <TextAreaField
-              label="Warnings"
-              value={form.warnings ?? ""}
-              onChange={(value) => updateField("warnings", value)}
-            />
-
-            <TextAreaField
-              label="Contraindications"
-              value={form.contraindications ?? ""}
-              onChange={(value) => updateField("contraindications", value)}
-            />
-
-            <TextAreaField
-              label="Storage Info"
-              value={form.storageInfo ?? ""}
-              onChange={(value) => updateField("storageInfo", value)}
-            />
-
-            <TextAreaField
-              label="Pregnancy Warning"
-              value={form.pregnancyWarning ?? ""}
-              onChange={(value) => updateField("pregnancyWarning", value)}
-            />
-
-            <div className="md:col-span-2">
-              <TextAreaField
-                label="Child Safety Info"
-                value={form.childSafetyInfo ?? ""}
-                onChange={(value) => updateField("childSafetyInfo", value)}
-              />
-            </div>
-          </div>
+          )}
         </div>
 
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">

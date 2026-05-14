@@ -123,6 +123,8 @@ export interface Product {
   discountPrice?: number | null;
 
   stock: number;
+  stockQuantity?: number;
+  lowStockThreshold?: number;
   isInStock?: boolean;
   isLowStock?: boolean;
 
@@ -149,10 +151,14 @@ export interface Product {
   averageRating: number;
   reviewCount: number;
 
-  category?: Category | null;
-  brand?: Brand | null;
+  /** Free-text category (matches backend `category`). */
+  category?: string | null;
+  /** Brand / trade name (matches backend `brand`). */
+  brand?: string | null;
 
+  /** @deprecated Prefer `category` — kept for older API payloads */
   categoryName?: string | null;
+  /** @deprecated Prefer `brand` */
   brandName?: string | null;
 
   imageUrls: string[];
@@ -170,6 +176,8 @@ export interface ProductListItem {
   discountPrice?: number | null;
 
   stock: number;
+  stockQuantity?: number;
+  lowStockThreshold?: number;
   isInStock?: boolean;
   isLowStock?: boolean;
 
@@ -183,7 +191,12 @@ export interface ProductListItem {
   primaryImageUrl?: string | null;
   imageUrls?: string[];
 
+  category?: string | null;
+  brand?: string | null;
+
+  /** @deprecated Prefer `category` */
   categoryName?: string | null;
+  /** @deprecated Prefer `brand` */
   brandName?: string | null;
 
   averageRating: number;
@@ -408,6 +421,7 @@ export interface PrescriptionItem {
   id: number;
   productId: number;
   productName: string;
+  productSlug?: string | null;
 
   dosageForm?: string | null;
   strength?: string | null;

@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  Facebook,
-  Instagram,
-  Linkedin,
-  Mail,
-  MapPin,
-  Phone,
-  Twitter,
-} from "lucide-react";
+import { Globe, Link2, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import Link from "next/link";
 
 export default function Footer() {
@@ -32,17 +24,17 @@ export default function Footer() {
               medicines.
             </p>
             <div className="flex space-x-4 mt-4">
-              <a href="#" className="hover:text-blue-400 transition-colors">
-                <Facebook className="w-5 h-5" />
+              <a href="#" className="hover:text-blue-400 transition-colors" aria-label="Social">
+                <Globe className="w-5 h-5" />
               </a>
-              <a href="#" className="hover:text-blue-400 transition-colors">
-                <Twitter className="w-5 h-5" />
+              <a href="#" className="hover:text-blue-400 transition-colors" aria-label="Social">
+                <MessageCircle className="w-5 h-5" />
               </a>
-              <a href="#" className="hover:text-blue-400 transition-colors">
-                <Instagram className="w-5 h-5" />
+              <a href="#" className="hover:text-blue-400 transition-colors" aria-label="Social">
+                <Link2 className="w-5 h-5" />
               </a>
-              <a href="#" className="hover:text-blue-400 transition-colors">
-                <Linkedin className="w-5 h-5" />
+              <a href="#" className="hover:text-blue-400 transition-colors" aria-label="Social">
+                <Globe className="w-5 h-5" />
               </a>
             </div>
           </div>

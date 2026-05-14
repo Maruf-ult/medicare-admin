@@ -35,7 +35,7 @@ export default function HomePage() {
               params: {
                 isFeatured: true,
                 pageNumber: 1,
-                pageSize: 5,
+                pageSize: 10,
               },
             }
           ),

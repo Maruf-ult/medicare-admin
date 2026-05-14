@@ -76,7 +76,7 @@ function normalizeProducts(
   }));
 }
 
-export default function ProductsAdminPage() {
+export default function CatalogPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -148,10 +148,10 @@ export default function ProductsAdminPage() {
     <div>
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Products</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Catalog</h1>
           <p className="mt-1 text-gray-600">
-            Manage catalog items. Category and brand are free-text fields on each
-            product.
+            Browse and manage products. Category and brand are stored as text on
+            each product.
           </p>
         </div>
       </div>
@@ -163,7 +163,7 @@ export default function ProductsAdminPage() {
         </div>
       )}
 
-      <ProductsTab
+      <CatalogProductsTable
         products={products}
         isLoading={isLoading}
         deletingId={deletingId}
@@ -177,7 +177,7 @@ export default function ProductsAdminPage() {
   );
 }
 
-function ProductsTab({
+function CatalogProductsTable({
   products,
   isLoading,
   deletingId,

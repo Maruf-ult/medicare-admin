@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Product } from "@/types";
+import { getProductSku, getProductStock } from "@/lib/utils";
 
 interface ProductTableProps {
   products: Product[];
@@ -48,21 +49,23 @@ export function ProductTable({ products }: ProductTableProps) {
                   </div>
                 </TableCell>
                 <TableCell className="text-sm text-gray-600">
-                  {product.sku}
+                  {getProductSku(product)}
                 </TableCell>
-                <TableCell className="text-sm text-gray-600">-</TableCell>
+                <TableCell className="text-sm text-gray-600">
+                  {product.category ?? product.categoryName ?? "-"}
+                </TableCell>
                 <TableCell className="text-sm font-medium text-gray-900">
                   ৳{product.price.toLocaleString()}
                 </TableCell>
                 <TableCell>
                   <span
                     className={
-                      product.stock < 5
+                      getProductStock(product) < 5
                         ? "text-red-600 font-medium"
                         : "text-gray-700"
                     }
                   >
-                    {product.stock} units
+                    {getProductStock(product)} units
                   </span>
                 </TableCell>
                 <TableCell className="space-x-1.5 whitespace-nowrap">
@@ -81,7 +84,7 @@ export function ProductTable({ products }: ProductTableProps) {
                       OTC
                     </Badge>
                   )}
-                  {product.stock === 0 && (
+                  {getProductStock(product) === 0 && (
                     <Badge variant="destructive">Out of Stock</Badge>
                   )}
                 </TableCell>

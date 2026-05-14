@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import api from "@/lib/api";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, getProductStock } from "@/lib/utils";
 import { ApiResponse, PagedResponse } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,8 +26,10 @@ type WishlistProduct = {
   price: number;
   discountPrice?: number | null;
   stock: number;
+  stockQuantity?: number;
   requiresPrescription: boolean;
   genericName?: string | null;
+  brand?: string | null;
   brandName?: string | null;
   categoryName?: string | null;
   imageUrls?: string[];
@@ -43,6 +45,7 @@ type WishlistItem = {
   price?: number;
   discountPrice?: number | null;
   stock?: number;
+  stockQuantity?: number;
   requiresPrescription?: boolean;
   brandName?: string | null;
   genericName?: string | null;
@@ -57,7 +60,14 @@ function normalizeWishlistItems(
 ): WishlistProduct[] {
   return extractItems(data).map((item) => {
     if (item.product) {
-      return item.product;
+      return {
+        ...item.product,
+        stock: getProductStock(item.product),
+        brandName:
+          item.product.brandName ??
+          item.product.brand ??
+          null,
+      };
     }
 
     return {
@@ -66,7 +76,10 @@ function normalizeWishlistItems(
       slug: item.productSlug ?? "",
       price: item.price ?? 0,
       discountPrice: item.discountPrice ?? null,
-      stock: item.stock ?? 0,
+      stock: getProductStock({
+        stock: item.stock,
+        stockQuantity: item.stockQuantity,
+      }),
       requiresPrescription: item.requiresPrescription ?? false,
       brandName: item.brandName ?? null,
       genericName: item.genericName ?? null,

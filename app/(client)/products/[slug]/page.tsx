@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
 import { ApiResponse, PagedResponse } from "@/types";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, getProductSku, getProductStock } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   AlertCircle,
@@ -36,6 +36,8 @@ type Product = {
   price: number;
   discountPrice?: number | null;
   stock: number;
+  stockQuantity?: number;
+  lowStockThreshold?: number;
   isInStock: boolean;
   isLowStock: boolean;
   requiresPrescription: boolean;
@@ -57,19 +59,36 @@ type Product = {
   isFeatured: boolean;
   averageRating: number;
   reviewCount: number;
-  category?: {
-    id: number;
-    name: string;
-    slug?: string;
-  } | null;
-  brand?: {
-    id: number;
-    name: string;
-    slug?: string;
-  } | null;
+  category?: string | null;
+  brand?: string | null;
   imageUrls: string[];
   createdAt: string;
 };
+
+/** Raw API shape — may use stockQuantity / SKU / PascalCase */
+type ProductApi = Omit<Product, "stock" | "sku" | "isInStock" | "isLowStock"> &
+  Partial<Pick<Product, "stock" | "sku" | "isInStock" | "isLowStock">> & {
+    stockQuantity?: number;
+    SKU?: string | null;
+  };
+
+function normalizeProduct(raw: ProductApi): Product {
+  const stock = getProductStock(raw);
+  const low = raw.lowStockThreshold ?? 10;
+  const isInStock = raw.isInStock ?? stock > 0;
+  const isLowStock =
+    raw.isLowStock ?? (stock > 0 && stock <= low && low > 0);
+
+  const { stockQuantity: _sq, SKU: _SKU, ...rest } = raw;
+
+  return {
+    ...rest,
+    sku: getProductSku(raw),
+    stock,
+    isInStock,
+    isLowStock,
+  };
+}
 
 type Review = {
   id: number;
@@ -161,7 +180,7 @@ export default function ProductDetailsPage() {
       setIsLoading(true);
       setErrorMessage(null);
 
-      const productResponse = await api.get<ApiResponse<Product>>(
+      const productResponse = await api.get<ApiResponse<ProductApi>>(
         `/products/${slug}`
       );
 
@@ -171,7 +190,7 @@ export default function ProductDetailsPage() {
         return;
       }
 
-      const productData = productResponse.data.data;
+      const productData = normalizeProduct(productResponse.data.data);
       setProduct(productData);
       setSelectedImage(productData.imageUrls?.[0] ?? null);
 
@@ -491,15 +510,15 @@ export default function ProductDetailsPage() {
         <div>
           <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              {product.brand?.name && (
+              {product.brand?.trim() && (
                 <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-blue-600">
-                  {product.brand.name}
+                  {product.brand.trim()}
                 </span>
               )}
 
-              {product.category?.name && (
+              {product.category?.trim() && (
                 <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-600">
-                  {product.category.name}
+                  {product.category.trim()}
                 </span>
               )}
 

@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
 import { ApiResponse } from "@/types";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, getProductSku, getProductStock } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   AlertCircle,
@@ -21,18 +21,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-type CategoryResponse = {
-  id: number;
-  name: string;
-  slug?: string;
-};
-
-type BrandResponse = {
-  id: number;
-  name: string;
-  slug?: string;
-};
-
 type ProductResponse = {
   id: number;
   name: string;
@@ -43,6 +31,8 @@ type ProductResponse = {
   price: number;
   discountPrice?: number | null;
   stock: number;
+  stockQuantity?: number;
+  lowStockThreshold?: number;
   isInStock: boolean;
   isLowStock: boolean;
   requiresPrescription: boolean;
@@ -63,11 +53,40 @@ type ProductResponse = {
   isFeatured: boolean;
   averageRating: number;
   reviewCount: number;
-  category?: CategoryResponse | null;
-  brand?: BrandResponse | null;
+  category?: string | null;
+  brand?: string | null;
   imageUrls: string[];
   createdAt: string;
 };
+
+type ProductApi = Omit<
+  ProductResponse,
+  "stock" | "sku" | "isInStock" | "isLowStock"
+> &
+  Partial<
+    Pick<ProductResponse, "stock" | "sku" | "isInStock" | "isLowStock">
+  > & {
+    stockQuantity?: number;
+    SKU?: string | null;
+  };
+
+function normalizeProduct(raw: ProductApi): ProductResponse {
+  const stock = getProductStock(raw);
+  const low = raw.lowStockThreshold ?? 10;
+  const isInStock = raw.isInStock ?? stock > 0;
+  const isLowStock =
+    raw.isLowStock ?? (stock > 0 && stock <= low && low > 0);
+
+  const { stockQuantity: _sq, SKU: _SKU, ...rest } = raw;
+
+  return {
+    ...rest,
+    sku: getProductSku(raw),
+    stock,
+    isInStock,
+    isLowStock,
+  };
+}
 
 function InfoRow({
   label,
@@ -129,12 +148,12 @@ export default function ProductDetailsPage() {
       setIsLoading(true);
       setErrorMessage(null);
 
-      const response = await api.get<ApiResponse<ProductResponse>>(
+      const response = await api.get<ApiResponse<ProductApi>>(
         `/products/id/${productId}`
       );
 
       if (response.data.success && response.data.data) {
-        setProduct(response.data.data);
+        setProduct(normalizeProduct(response.data.data));
       } else {
         setProduct(null);
         setErrorMessage(response.data.message || "Product not found.");
@@ -356,9 +375,9 @@ export default function ProductDetailsPage() {
                 <InfoRow label="Stock" value={`${product.stock} units`} />
                 <InfoRow
                   label="Category"
-                  value={product.category?.name ?? "N/A"}
+                  value={product.category?.trim() || "N/A"}
                 />
-                <InfoRow label="Brand" value={product.brand?.name ?? "N/A"} />
+                <InfoRow label="Brand" value={product.brand?.trim() || "N/A"} />
               </div>
 
               <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">

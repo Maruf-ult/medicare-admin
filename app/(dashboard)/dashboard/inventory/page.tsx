@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
-import { formatDate } from "@/lib/utils";
+import { formatDate, getProductSku, getProductStock } from "@/lib/utils";
 import {
   AlertCircle,
   CalendarClock,
@@ -16,7 +16,10 @@ type BackendProduct = {
   id: number;
   name: string;
   sku?: string | null;
+  SKU?: string | null;
   genericName?: string | null;
+  brand?: string | null;
+  category?: string | null;
   brandName?: string | null;
   categoryName?: string | null;
   stock?: number;
@@ -64,15 +67,15 @@ function normalizeLowStockProducts(
   data: BackendProduct[] | PagedResponse<BackendProduct>
 ): InventoryItem[] {
   return extractItems(data).map((product) => {
-    const quantity = product.stockQuantity ?? product.stock ?? 0;
+    const quantity = getProductStock(product);
 
     return {
       id: product.id,
       product: product.name,
-      sku: product.sku ?? "N/A",
+      sku: getProductSku(product),
       genericName: product.genericName ?? "N/A",
-      brandName: product.brandName ?? "No Brand",
-      categoryName: product.categoryName ?? "Uncategorized",
+      brandName: product.brand ?? product.brandName ?? "No Brand",
+      categoryName: product.category ?? product.categoryName ?? "Uncategorized",
       quantity,
       lowStockThreshold: product.lowStockThreshold ?? 10,
       expiryDate: product.nearestExpiryDate ?? product.expiryDate ?? null,
@@ -85,15 +88,15 @@ function normalizeExpiringProducts(
   data: BackendProduct[] | PagedResponse<BackendProduct>
 ): InventoryItem[] {
   return extractItems(data).map((product) => {
-    const quantity = product.stockQuantity ?? product.stock ?? 0;
+    const quantity = getProductStock(product);
 
     return {
       id: product.id,
       product: product.name,
-      sku: product.sku ?? "N/A",
+      sku: getProductSku(product),
       genericName: product.genericName ?? "N/A",
-      brandName: product.brandName ?? "No Brand",
-      categoryName: product.categoryName ?? "Uncategorized",
+      brandName: product.brand ?? product.brandName ?? "No Brand",
+      categoryName: product.category ?? product.categoryName ?? "Uncategorized",
       quantity,
       lowStockThreshold: product.lowStockThreshold ?? 10,
       expiryDate: product.nearestExpiryDate ?? product.expiryDate ?? null,
