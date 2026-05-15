@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import api from "@/lib/api";
-import { formatCurrency } from "@/lib/utils";
-import { ApiResponse } from "@/types";
 import { Button } from "@/components/ui/button";
+import api from "@/lib/api";
+import { formatCurrency, getImageUrl } from "@/lib/utils";
+import { useStore } from "@/store/useStore";
+import { ApiResponse } from "@/types";
 import {
   AlertCircle,
   ArrowLeft,
@@ -18,6 +17,8 @@ import {
   ShoppingCart,
   Trash2,
 } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 type CartItem = {
@@ -25,7 +26,7 @@ type CartItem = {
   productId: number;
   productName: string;
   productSlug?: string | null;
-  productImageUrl?: string | null;
+  primaryImageUrl?: string | null;
   brandName?: string | null;
   genericName?: string | null;
   price: number;
@@ -61,23 +62,26 @@ export default function CartPage() {
   const [deletingItemId, setDeletingItemId] = useState<number | null>(null);
   const [isClearing, setIsClearing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { fetchCounts, setCount } = useStore();
 
   const getCart = async () => {
     try {
       setIsLoading(true);
       setErrorMessage(null);
 
-      const response = await api.get<ApiResponse<CartResponse | CartItem[]>>(
-        "/cart"
-      );
+      const response =
+        await api.get<ApiResponse<CartResponse | CartItem[]>>("/cart");
 
       if (response.data.success && response.data.data) {
         const cartData = response.data.data;
+        const items = getCartItems(cartData);
         setCart(Array.isArray(cartData) ? { items: cartData } : cartData);
-        setItems(getCartItems(cartData));
+        setItems(items);
+        setCount(items.length);
       } else {
         setCart(null);
         setItems([]);
+        setCount(0);
         setErrorMessage(response.data.message || "Failed to load cart.");
       }
     } catch (error) {
@@ -109,7 +113,9 @@ export default function CartPage() {
 
     const discount = cart?.discount ?? 0;
     const total =
-      cart?.total !== undefined ? cart.total : subtotal + deliveryCharge - discount;
+      cart?.total !== undefined
+        ? cart.total
+        : subtotal + deliveryCharge - discount;
 
     return {
       subtotal,
@@ -120,7 +126,7 @@ export default function CartPage() {
   }, [items, cart]);
 
   const needsPrescriptionApproval = items.some(
-    (item) => item.requiresPrescription && !item.prescriptionApproved
+    (item) => item.requiresPrescription && !item.prescriptionApproved,
   );
 
   const updateQuantity = async (item: CartItem, newQuantity: number) => {
@@ -138,7 +144,7 @@ export default function CartPage() {
         `/cart/items/${item.id}`,
         {
           quantity: newQuantity,
-        }
+        },
       );
 
       if (response.data.success) {
@@ -149,8 +155,8 @@ export default function CartPage() {
                   ...cartItem,
                   quantity: newQuantity,
                 }
-              : cartItem
-          )
+              : cartItem,
+          ),
         );
 
         toast.success("Cart updated");
@@ -167,7 +173,7 @@ export default function CartPage() {
 
   const removeItem = async (item: CartItem) => {
     const confirmed = window.confirm(
-      `Remove "${item.productName}" from your cart?`
+      `Remove "${item.productName}" from your cart?`,
     );
 
     if (!confirmed) return;
@@ -176,11 +182,15 @@ export default function CartPage() {
       setDeletingItemId(item.id);
 
       const response = await api.delete<ApiResponse<unknown>>(
-        `/cart/items/${item.id}`
+        `/cart/items/${item.id}`,
       );
 
       if (response.data.success) {
-        setItems((prev) => prev.filter((cartItem) => cartItem.id !== item.id));
+        setItems((prev) => {
+          const newItems = prev.filter((cartItem) => cartItem.id !== item.id);
+          setCount(newItems.length);
+          return newItems;
+        });
         toast.success("Item removed from cart");
       } else {
         toast.error(response.data.message || "Failed to remove item");
@@ -196,7 +206,9 @@ export default function CartPage() {
   const clearCart = async () => {
     if (items.length === 0) return;
 
-    const confirmed = window.confirm("Are you sure you want to clear your cart?");
+    const confirmed = window.confirm(
+      "Are you sure you want to clear your cart?",
+    );
 
     if (!confirmed) return;
 
@@ -208,6 +220,7 @@ export default function CartPage() {
       if (response.data.success) {
         setItems([]);
         setCart({ items: [] });
+        setCount(0);
         toast.success("Cart cleared");
       } else {
         toast.error(response.data.message || "Failed to clear cart");
@@ -250,7 +263,12 @@ export default function CartPage() {
         </div>
 
         <div className="flex gap-2">
-          <Button type="button" variant="outline" onClick={getCart} className="gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={getCart}
+            className="gap-2"
+          >
             <RefreshCcw className="h-4 w-4" />
             Refresh
           </Button>
@@ -350,9 +368,9 @@ export default function CartPage() {
                       }
                       className="flex h-24 w-24 items-center justify-center rounded-xl bg-gray-50"
                     >
-                      {item.productImageUrl ? (
+                      {item.primaryImageUrl ? (
                         <img
-                          src={item.productImageUrl}
+                          src={getImageUrl(item.primaryImageUrl)}
                           alt={item.productName}
                           className="h-full w-full rounded-xl object-contain p-2"
                         />
