@@ -2,7 +2,8 @@
 
 import { Button } from "@/components/ui/button";
 import api from "@/lib/api";
-import { formatCurrency, getProductSku } from "@/lib/utils";
+import { formatCurrency, getProductSku, getImageUrl } from "@/lib/utils";
+
 import { ApiResponse, PagedResponse } from "@/types";
 import {
   AlertCircle,
@@ -36,6 +37,7 @@ type BackendProduct = {
   stockQuantity?: number;
   requiresPrescription: boolean;
   isActive: boolean;
+  primaryImageUrl?: string | null;
 };
 
 type Product = {
@@ -51,6 +53,7 @@ type Product = {
   stock: number;
   requiresRx: boolean;
   status: "active" | "inactive";
+  image?: string | null;
 };
 
 function extractItems<T>(data: T[] | PagedResponse<T>): T[] {
@@ -73,6 +76,7 @@ function normalizeProducts(
     stock: product.stockQuantity ?? product.stock ?? 0,
     requiresRx: product.requiresPrescription,
     status: product.isActive ? "active" : "inactive",
+    image: product.primaryImageUrl,
   }));
 }
 
@@ -256,6 +260,9 @@ function ProductsTab({
             <thead className="border-b border-gray-200 bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                  Image
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
                   Name
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
@@ -281,6 +288,19 @@ function ProductsTab({
             <tbody className="divide-y divide-gray-200">
               {products.map((product) => (
                 <tr key={product.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <div className="h-10 w-10 overflow-hidden rounded-lg bg-gray-100 flex items-center justify-center border border-gray-200">
+                      {product.image ? (
+                        <img
+                          src={getImageUrl(product.image)}
+                          alt={product.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <Pill className="h-5 w-5 text-gray-300" />
+                      )}
+                    </div>
+                  </td>
                   <td className="px-6 py-4">
                     <div className="text-sm font-medium text-gray-900">
                       {product.name}

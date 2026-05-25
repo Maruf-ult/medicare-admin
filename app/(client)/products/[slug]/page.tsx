@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
 import { ApiResponse, PagedResponse } from "@/types";
-import { formatCurrency, formatDate, getProductSku, getProductStock } from "@/lib/utils";
+import { formatCurrency, formatDate, getProductSku, getProductStock, getImageUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   AlertCircle,
@@ -25,6 +26,7 @@ import {
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useStore } from "@/store/useStore";
 
 type Product = {
   id: number;
@@ -174,6 +176,7 @@ export default function ProductDetailsPage() {
   const [isCartLoading, setIsCartLoading] = useState(false);
   const [isWishlistLoading, setIsWishlistLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { fetchCounts } = useStore();
 
   const getProductDetails = async () => {
     try {
@@ -273,6 +276,7 @@ export default function ProductDetailsPage() {
 
       if (response.data.success) {
         toast.success("Product added to cart");
+        fetchCounts();
       } else {
         toast.error(response.data.message || "Failed to add product to cart");
       }
@@ -298,6 +302,7 @@ export default function ProductDetailsPage() {
         if (response.data.success) {
           setIsWishlisted(false);
           toast.success("Removed from wishlist");
+          fetchCounts();
         } else {
           toast.error(response.data.message || "Failed to update wishlist");
         }
@@ -309,6 +314,7 @@ export default function ProductDetailsPage() {
         if (response.data.success) {
           setIsWishlisted(true);
           toast.success("Added to wishlist");
+          fetchCounts();
         } else {
           toast.error(response.data.message || "Failed to update wishlist");
         }
@@ -407,7 +413,7 @@ export default function ProductDetailsPage() {
             <div className="relative flex h-[420px] items-center justify-center rounded-xl bg-gray-50">
               {selectedImage ? (
                 <img
-                  src={selectedImage}
+                  src={getImageUrl(selectedImage)}
                   alt={product.name}
                   className="h-full w-full rounded-xl object-contain p-6"
                 />
@@ -458,7 +464,7 @@ export default function ProductDetailsPage() {
                     }`}
                   >
                     <img
-                      src={imageUrl}
+                      src={getImageUrl(imageUrl)}
                       alt={`${product.name} ${index + 1}`}
                       className="h-full w-full object-contain"
                     />

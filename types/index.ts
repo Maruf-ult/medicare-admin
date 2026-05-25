@@ -235,7 +235,8 @@ export interface CartItem {
   productId: number;
   productName: string;
   productSlug?: string | null;
-  productImageUrl?: string | null;
+  primaryImageUrl?: string | null;
+  imageUrls?: string[];
 
   brandName?: string | null;
   genericName?: string | null;
@@ -318,13 +319,17 @@ export interface Order {
 
   transactionId?: string | null;
   senderPhoneNumber?: string | null;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
 }
 export interface OrderItem {
   id: number;
   productId: number;
   productName: string;
   productSlug?: string | null;
-  productImageUrl?: string | null;
+  primaryImageUrl?: string | null;
+  imageUrls?: string[];
 
   quantity: number;
   unitPrice: number;
@@ -336,23 +341,17 @@ export interface OrderItem {
 export interface OrderAddress {
   fullName: string;
   phone: string;
-  district?: string;
-  city?: string;
+  city: string;
   area: string;
-  addressLine?: string;
-  addressLine1?: string;
-  addressLine2?: string;
-  postalCode?: string;
+  addressLine: string;
 }
 
 export interface ShippingAddress {
-  fullName?: string | null;
-  phone?: string | null;
-  addressLine1?: string | null;
-  addressLine2?: string | null;
-  city?: string | null;
-  area?: string | null;
-  postalCode?: string | null;
+  fullName: string;
+  phone: string;
+  city: string;
+  area: string;
+  addressLine: string;
 }
 
 // ── Payment / MFS ─────────────────────────────────────────
@@ -363,6 +362,15 @@ export interface MfsPaymentRequest {
   paymentMethod: MfsProvider;
   transactionId: string;
   senderPhoneNumber: string;
+}
+
+export interface PaymentInitiationResponse {
+  success: boolean;
+  message?: string;
+  paymentUrl?: string;
+  sessionId?: string;
+  orderId: number;
+  amount: number;
 }
 
 export interface MfsPaymentDetails {
@@ -484,7 +492,8 @@ export interface WishlistItem {
 
   productName?: string;
   productSlug?: string;
-  productImageUrl?: string | null;
+  primaryImageUrl?: string | null;
+  imageUrls?: string[];
 
   price?: number;
   discountPrice?: number | null;

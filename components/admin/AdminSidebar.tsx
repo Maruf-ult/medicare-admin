@@ -38,11 +38,6 @@ const navItems = [
     icon: ClipboardList,
   },
   {
-    label: "Payments",
-    href: "/dashboard/payments",
-    icon: CreditCard,
-  },
-  {
     label: "Prescriptions",
     href: "/dashboard/prescriptions",
     icon: Package,

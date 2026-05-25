@@ -1,12 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import Link from "next/link";
-import api from "@/lib/api";
-import { formatCurrency, formatDate } from "@/lib/utils";
-import { ApiResponse } from "@/types";
 import { Button } from "@/components/ui/button";
+import api from "@/lib/api";
+import { formatCurrency, formatDate, getImageUrl } from "@/lib/utils";
+import { ApiResponse } from "@/types";
 import {
   AlertCircle,
   ArrowLeft,
@@ -22,6 +19,9 @@ import {
   Truck,
   X,
 } from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 type OrderItem = {
@@ -30,6 +30,7 @@ type OrderItem = {
   productName: string;
   productSlug?: string | null;
   productImageUrl?: string | null;
+  ProductImageUrl?: string | null;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
@@ -39,11 +40,9 @@ type OrderItem = {
 type ShippingAddress = {
   fullName?: string | null;
   phone?: string | null;
-  addressLine1?: string | null;
-  addressLine2?: string | null;
+  addressLine?: string | null;
   city?: string | null;
   area?: string | null;
-  postalCode?: string | null;
 };
 
 type Order = {
@@ -58,6 +57,7 @@ type Order = {
   total: number;
   note?: string | null;
   cancellationReason?: string | null;
+  address?: ShippingAddress | null;
   shippingAddress?: ShippingAddress | null;
   items?: OrderItem[];
   orderItems?: OrderItem[];
@@ -75,9 +75,34 @@ function getOrderItems(order: Order): OrderItem[] {
   return order.items ?? order.orderItems ?? [];
 }
 
+function getOrderItemImageUrl(item: OrderItem): string | null {
+  return item.productImageUrl ?? item.ProductImageUrl ?? null;
+}
+
 function isMfsPayment(method: string) {
   const normalized = method.toLowerCase();
-  return normalized === "bkash" || normalized === "nagad" || normalized === "upay";
+  return (
+    normalized === "bkash" || normalized === "nagad" || normalized === "upay"
+  );
+}
+
+function getApiErrorMessage(
+  error: unknown,
+  defaultMessage = "Unexpected error.",
+) {
+  if (typeof error !== "object" || error === null) return defaultMessage;
+
+  const apiError = error as {
+    response?: {
+      data?: { message?: string; errors?: string[] };
+    };
+  };
+
+  return (
+    apiError.response?.data?.message ||
+    apiError.response?.data?.errors?.[0] ||
+    (error instanceof Error ? error.message : defaultMessage)
+  );
 }
 
 function getPaymentStatusStyle(status: string) {
@@ -161,6 +186,7 @@ export default function MyOrderDetailsPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const getOrder = async () => {
@@ -175,7 +201,7 @@ export default function MyOrderDetailsPage() {
       setErrorMessage(null);
 
       const response = await api.get<ApiResponse<Order>>(
-        `/orders/my-orders/${orderId}`
+        `/orders/my-orders/${orderId}`,
       );
 
       if (response.data.success && response.data.data) {
@@ -184,16 +210,19 @@ export default function MyOrderDetailsPage() {
         setOrder(null);
         setErrorMessage(response.data.message || "Order not found.");
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Failed to load order:", error);
       setOrder(null);
-      setErrorMessage("Failed to load order details.");
+      setErrorMessage(
+        getApiErrorMessage(error, "Failed to load order details."),
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
+    // eslint-disable-next-line
     getOrder();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
@@ -202,7 +231,7 @@ export default function MyOrderDetailsPage() {
     if (!order) return;
 
     const confirmed = window.confirm(
-      "Are you sure you want to cancel this order?"
+      "Are you sure you want to cancel this order?",
     );
     if (!confirmed) return;
 
@@ -213,7 +242,7 @@ export default function MyOrderDetailsPage() {
         `/orders/my-orders/${order.id}/cancel`,
         {
           reason: "Cancelled by customer",
-        }
+        },
       );
 
       if (response.data.success) {
@@ -222,17 +251,42 @@ export default function MyOrderDetailsPage() {
       } else {
         toast.error(response.data.message || "Failed to cancel order");
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Failed to cancel order:", error);
-      toast.error("Failed to cancel order");
+      toast.error(getApiErrorMessage(error, "Failed to cancel order"));
     } finally {
       setIsCancelling(false);
     }
   };
 
+  const initiateOrderPayment = async () => {
+    if (!order) return;
+
+    try {
+      setIsPaying(true);
+      const response = await api.post<ApiResponse<{ paymentUrl: string }>>(
+        `/payments/initiate/${order.id}?method=${encodeURIComponent(
+          order.paymentMethod,
+        )}`,
+      );
+
+      if (response.data.success && response.data.data?.paymentUrl) {
+        window.open(response.data.data.paymentUrl, "_blank");
+        toast.success("Opening payment gateway in a new tab...");
+      } else {
+        throw new Error(response.data.message || "Failed to initiate payment");
+      }
+    } catch (error: unknown) {
+      console.error("Payment initiation failed:", error);
+      toast.error(getApiErrorMessage(error, "Failed to initiate payment"));
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
   if (isLoading) {
     return (
-      <div className="flex min-h-[500px] items-center justify-center">
+      <div className="flex min-h-125 items-center justify-center">
         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
         Loading order details...
       </div>
@@ -261,6 +315,7 @@ export default function MyOrderDetailsPage() {
   }
 
   const items = getOrderItems(order);
+  const shippingAddress = order.shippingAddress ?? order.address ?? null;
   const canCancel = ["Pending", "Confirmed"].includes(order.orderStatus);
   const mfsPayment = isMfsPayment(order.paymentMethod);
   const transactionId = order.transactionId ?? order.mfsTransactionId ?? null;
@@ -268,6 +323,11 @@ export default function MyOrderDetailsPage() {
     order.senderPhoneNumber ?? order.mfsSenderPhoneNumber ?? null;
   const paymentStatus = getPaymentStatusStyle(order.paymentStatus);
   const PaymentStatusIcon = paymentStatus.icon;
+  const showTransactionDetails = Boolean(transactionId || senderPhoneNumber);
+  const showPayNow =
+    order.paymentStatus.toLowerCase() !== "paid" &&
+    order.paymentStatus.toLowerCase() !== "submitted" &&
+    order.paymentMethod.toLowerCase() !== "cashondelivery";
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -377,92 +437,89 @@ export default function MyOrderDetailsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          <CardBox title="Order Items" icon={ShoppingBag}>
-            {items.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center">
-                <p className="font-bold text-gray-900">No items found</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="grid grid-cols-1 gap-4 rounded-xl border border-gray-200 p-4 sm:grid-cols-[80px_1fr_auto]"
+      <div className="space-y-6">
+        <CardBox title="Order Items" icon={ShoppingBag}>
+          {items.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center">
+              <p className="font-bold text-gray-900">No items found</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {items.map((item) => (
+                <div
+                  key={item.id}
+                  className="grid grid-cols-1 gap-4 rounded-xl border border-gray-200 p-4 sm:grid-cols-[80px_1fr_auto]"
+                >
+                  <Link
+                    href={
+                      item.productSlug
+                        ? `/products/${item.productSlug}`
+                        : "/shop"
+                    }
+                    className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-lg bg-gray-50"
                   >
+                    {getOrderItemImageUrl(item) ? (
+                      <img
+                        src={getImageUrl(getOrderItemImageUrl(item))}
+                        alt={item.productName}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <Package className="h-8 w-8 text-blue-300" />
+                    )}
+                  </Link>
+                  <div>
                     <Link
                       href={
                         item.productSlug
                           ? `/products/${item.productSlug}`
                           : "/shop"
                       }
-                      className="flex h-20 w-20 items-center justify-center rounded-lg bg-gray-50"
+                      className="font-black text-gray-900 hover:text-blue-600"
                     >
-                      {item.productImageUrl ? (
-                        <img
-                          src={item.productImageUrl}
-                          alt={item.productName}
-                          className="h-full w-full rounded-lg object-contain p-2"
-                        />
-                      ) : (
-                        <Package className="h-8 w-8 text-blue-300" />
-                      )}
+                      {item.productName}
                     </Link>
 
-                    <div>
-                      <Link
-                        href={
-                          item.productSlug
-                            ? `/products/${item.productSlug}`
-                            : "/shop"
-                        }
-                        className="font-black text-gray-900 hover:text-blue-600"
-                      >
-                        {item.productName}
-                      </Link>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Quantity: {item.quantity} ×{" "}
+                      {formatCurrency(item.unitPrice)}
+                    </p>
 
-                      <p className="mt-1 text-sm text-gray-500">
-                        Quantity: {item.quantity} ×{" "}
-                        {formatCurrency(item.unitPrice)}
-                      </p>
-
-                      {item.requiresPrescription && (
-                        <span className="mt-2 inline-flex rounded-full bg-yellow-50 px-3 py-1 text-xs font-bold text-yellow-700">
-                          Rx Product
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="text-left sm:text-right">
-                      <p className="font-black text-blue-600">
-                        {formatCurrency(item.totalPrice)}
-                      </p>
-                    </div>
+                    {item.requiresPrescription && (
+                      <span className="mt-2 inline-flex rounded-full bg-yellow-50 px-3 py-1 text-xs font-bold text-yellow-700">
+                        Rx Product
+                      </span>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
+
+                  <div className="text-left sm:text-right">
+                    <p className="font-black text-blue-600">
+                      {formatCurrency(item.totalPrice)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardBox>
+
+        {order.note && (
+          <CardBox title="Order Note" icon={Package}>
+            <p className="whitespace-pre-line text-sm leading-7 text-gray-600">
+              {order.note}
+            </p>
           </CardBox>
+        )}
 
-          {order.note && (
-            <CardBox title="Order Note" icon={Package}>
-              <p className="whitespace-pre-line text-sm leading-7 text-gray-600">
-                {order.note}
-              </p>
-            </CardBox>
-          )}
+        {order.cancellationReason && (
+          <CardBox title="Cancellation Reason" icon={AlertCircle}>
+            <p className="whitespace-pre-line text-sm leading-7 text-red-600">
+              {order.cancellationReason}
+            </p>
+          </CardBox>
+        )}
 
-          {order.cancellationReason && (
-            <CardBox title="Cancellation Reason" icon={AlertCircle}>
-              <p className="whitespace-pre-line text-sm leading-7 text-red-600">
-                {order.cancellationReason}
-              </p>
-            </CardBox>
-          )}
-        </div>
-
-        <div className="space-y-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           <CardBox
             title={mfsPayment ? "MFS Payment Summary" : "Payment Summary"}
             icon={mfsPayment ? Smartphone : CreditCard}
@@ -470,7 +527,7 @@ export default function MyOrderDetailsPage() {
             <InfoLine label="Payment Method" value={order.paymentMethod} />
             <InfoLine label="Payment Status" value={order.paymentStatus} />
 
-            {mfsPayment && (
+            {showTransactionDetails && (
               <>
                 <InfoLine label="Transaction ID" value={transactionId} />
                 <InfoLine label="Sender Phone" value={senderPhoneNumber} />
@@ -484,6 +541,38 @@ export default function MyOrderDetailsPage() {
               value={formatCurrency(order.deliveryCharge)}
             />
             <InfoLine label="Total" value={formatCurrency(order.total)} />
+
+            {showPayNow && (
+              <div className="mt-6">
+                <button
+                  type="button"
+                  disabled={isPaying}
+                  onClick={initiateOrderPayment}
+                  className="inline-flex w-full items-center justify-center rounded-3xl bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isPaying ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  Pay Now
+                </button>
+              </div>
+            )}
+          </CardBox>
+
+          <CardBox title="Delivery Address" icon={MapPin}>
+            {shippingAddress ? (
+              <>
+                <InfoLine label="Name" value={shippingAddress.fullName} />
+                <InfoLine label="Phone" value={shippingAddress.phone} />
+                <InfoLine label="Address" value={shippingAddress.addressLine} />
+                <InfoLine label="City" value={shippingAddress.city} />
+                <InfoLine label="Area" value={shippingAddress.area} />
+              </>
+            ) : (
+              <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-700">
+                Delivery address not found.
+              </div>
+            )}
           </CardBox>
 
           {mfsPayment && (
@@ -520,31 +609,6 @@ export default function MyOrderDetailsPage() {
               )}
             </CardBox>
           )}
-
-          <CardBox title="Delivery Address" icon={MapPin}>
-            {order.shippingAddress ? (
-              <>
-                <InfoLine label="Name" value={order.shippingAddress.fullName} />
-                <InfoLine label="Phone" value={order.shippingAddress.phone} />
-                <InfoLine
-                  label="Address"
-                  value={order.shippingAddress.addressLine1}
-                />
-                <InfoLine
-                  label="Address 2"
-                  value={order.shippingAddress.addressLine2}
-                />
-                <InfoLine label="City" value={order.shippingAddress.city} />
-                <InfoLine label="Area" value={order.shippingAddress.area} />
-                <InfoLine
-                  label="Postal Code"
-                  value={order.shippingAddress.postalCode}
-                />
-              </>
-            ) : (
-              <p className="text-sm text-gray-500">No address found.</p>
-            )}
-          </CardBox>
 
           <CardBox title="Delivery Status" icon={Truck}>
             <InfoLine label="Order Status" value={order.orderStatus} />

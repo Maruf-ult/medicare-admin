@@ -73,10 +73,23 @@ export function getProductSku(p: {
 // ── Get image url ─────────────────────────────────────────
 export function getImageUrl(path: string | null | undefined): string {
   if (!path) return "";
-  if (path.startsWith("http")) return path;
-  
+
+  const normalizedPath = path.trim().replace(/\\/g, "/");
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
-  const rootUrl = baseUrl.replace(/\/api$/, "");
-  
-  return path.startsWith("/") ? `${rootUrl}${path}` : `${rootUrl}/${path}`;
+  const apiRootUrl = baseUrl.replace(/\/api$/, "");
+
+  if (
+    normalizedPath.startsWith("http://") ||
+    normalizedPath.startsWith("https://")
+  ) {
+    // Redirect localhost:3000 requests to the backend API URL
+    if (normalizedPath.includes("localhost:3000")) {
+      return normalizedPath.replace("http://localhost:3000", apiRootUrl);
+    }
+    return normalizedPath;
+  }
+
+  return normalizedPath.startsWith("/")
+    ? `${apiRootUrl}${normalizedPath}`
+    : `${apiRootUrl}/${normalizedPath}`;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { getImageUrl } from "@/lib/utils";
 import { Heart, Pill, ShoppingCart } from "lucide-react";
 import Link from "next/link";
 
@@ -122,7 +123,7 @@ export default function ProductGrid({
               {/* Image Container */}
               <div className="relative bg-gray-100 h-48 flex items-center justify-center overflow-hidden">
                 <img
-                  src={product.image}
+                  src={getImageUrl(product.image)}
                   alt={product.name}
                   className="w-full h-full object-cover hover:scale-105 transition-transform"
                 />

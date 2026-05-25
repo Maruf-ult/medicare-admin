@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
 import { ApiResponse } from "@/types";
-import { formatCurrency, formatDate, getProductSku, getProductStock } from "@/lib/utils";
+import { formatCurrency, formatDate, getProductSku, getProductStock, getImageUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   AlertCircle,
@@ -293,7 +293,7 @@ export default function ProductDetailsPage() {
             <div className="flex h-72 items-center justify-center rounded-2xl bg-blue-50">
               {product.imageUrls && product.imageUrls.length > 0 ? (
                 <img
-                  src={product.imageUrls[0]}
+                  src={getImageUrl(product.imageUrls[0])}
                   alt={product.name}
                   className="h-full w-full rounded-2xl object-contain"
                 />
@@ -307,7 +307,7 @@ export default function ProductDetailsPage() {
                 {product.imageUrls.slice(0, 4).map((imageUrl, index) => (
                   <img
                     key={`${imageUrl}-${index}`}
-                    src={imageUrl}
+                    src={getImageUrl(imageUrl)}
                     alt={`${product.name} ${index + 1}`}
                     className="h-16 w-full rounded-lg border border-gray-200 object-contain"
                   />

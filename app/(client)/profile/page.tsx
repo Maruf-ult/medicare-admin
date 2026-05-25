@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { ApiResponse } from "@/types";
+import { getImageUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Loader2, Save, UserCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -128,7 +129,7 @@ export default function ProfilePage() {
           <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-white">
             {form.profileImageUrl ? (
               <img
-                src={form.profileImageUrl}
+                src={getImageUrl(form.profileImageUrl)}
                 alt={form.name}
                 className="h-20 w-20 rounded-xl object-cover"
               />

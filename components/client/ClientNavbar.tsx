@@ -16,6 +16,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { AuthResponse } from "@/types";
+import { useStore } from "@/store/useStore";
 
 const navLinks = [
   {
@@ -39,10 +40,14 @@ export default function ClientNavbar() {
   const [search, setSearch] = useState("");
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [user, setUser] = useState<AuthResponse | null>(null);
+  const { count, wishlistCount, fetchCounts } = useStore();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     setUser(authUtils.getUser());
-  }, []);
+    fetchCounts();
+  }, [fetchCounts]);
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -135,9 +140,11 @@ export default function ClientNavbar() {
               title="Cart"
             >
               <ShoppingCart className="h-5 w-5" />
-              <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-blue-600 px-1 text-[10px] font-bold text-white">
-                0
-              </span>
+              {mounted && count > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-blue-600 px-1 text-[10px] font-bold text-white">
+                  {count}
+                </span>
+              )}
             </Link>
 
             <Link
@@ -146,9 +153,11 @@ export default function ClientNavbar() {
               title="Wishlist"
             >
               <Heart className="h-5 w-5" />
-              <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-blue-600 px-1 text-[10px] font-bold text-white">
-                0
-              </span>
+              {mounted && wishlistCount > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-blue-600 px-1 text-[10px] font-bold text-white">
+                  {wishlistCount}
+                </span>
+              )}
             </Link>
 
             <Link

@@ -5,12 +5,20 @@ import { Input } from "@/components/ui/input";
 import { Heart, Menu, Search, ShoppingCart, Upload, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useStore } from "@/store/useStore";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
+  const { count, wishlistCount, fetchCounts } = useStore();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    fetchCounts();
+  }, [fetchCounts]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,9 +95,11 @@ export default function Navbar() {
                 className="text-gray-600 hover:text-blue-600 relative"
               >
                 <Heart className="w-5 h-5" />
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                  0
-                </span>
+                {mounted && wishlistCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                    {wishlistCount}
+                  </span>
+                )}
               </Button>
             </Link>
 
@@ -101,9 +111,11 @@ export default function Navbar() {
                 className="text-gray-600 hover:text-blue-600 relative"
               >
                 <ShoppingCart className="w-5 h-5" />
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                  0
-                </span>
+                {mounted && count > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                    {count}
+                  </span>
+                )}
               </Button>
             </Link>
 

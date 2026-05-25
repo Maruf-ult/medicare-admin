@@ -1,11 +1,12 @@
 "use client";
 
 import api from "@/lib/api";
-import { formatCurrency, getProductStock } from "@/lib/utils";
+import { formatCurrency, getProductStock, getImageUrl } from "@/lib/utils";
 import { ApiResponse } from "@/types";
 import { CheckCircle2, Heart, Pill, Plus } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { useStore } from "@/store/useStore";
 
 export type ClientProduct = {
   id: number;
@@ -25,6 +26,7 @@ export type ClientProduct = {
   category?: string | null;
   categoryName?: string | null;
   imageUrls?: string[];
+  primaryImageUrl?: string | null;
   /** Alternate field name from some API versions */
   stockQuantity?: number;
 };
@@ -34,6 +36,7 @@ type ProductCardProps = {
 };
 
 export default function ProductCard({ product }: ProductCardProps) {
+  const { fetchCounts } = useStore();
   const brandName =
     (typeof product.brand === "string" ? product.brand : null) ??
     product.brandName ??
@@ -72,6 +75,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
       if (response.data.success) {
         toast.success("Product added to cart");
+        fetchCounts();
       } else {
         toast.error(response.data.message || "Failed to add product to cart");
       }
@@ -89,6 +93,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
       if (response.data.success) {
         toast.success("Product added to wishlist");
+        fetchCounts();
       } else {
         toast.error(response.data.message || "Failed to update wishlist");
       }
@@ -102,9 +107,9 @@ export default function ProductCard({ product }: ProductCardProps) {
     <div className="group overflow-hidden rounded-xl border border-gray-200 bg-white transition hover:-translate-y-0.5 hover:border-blue-100 hover:shadow-md">
       <div className="relative flex h-40 items-center justify-center bg-gray-50">
         <Link href={productHref} className="h-full w-full">
-          {product.imageUrls && product.imageUrls.length > 0 ? (
+          {product.primaryImageUrl || (product.imageUrls && product.imageUrls.length > 0) ? (
             <img
-              src={product.imageUrls[0]}
+              src={getImageUrl(product.primaryImageUrl || product.imageUrls?.[0])}
               alt={product.name}
               className="h-full w-full object-contain p-4 transition group-hover:scale-105"
             />

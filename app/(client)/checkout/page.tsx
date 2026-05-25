@@ -16,6 +16,7 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useStore } from "@/store/useStore";
 
 type CartItem = {
   id: number;
@@ -45,17 +46,9 @@ type MfsPaymentMethod = "bKash" | "Nagad" | "Upay";
 const initialAddress = {
   fullName: "",
   phone: "",
-  addressLine1: "",
-  addressLine2: "",
+  addressLine: "",
   city: "",
   area: "",
-  postalCode: "",
-};
-
-const mfsNumbers: Record<MfsPaymentMethod, string> = {
-  bKash: "01XXXXXXXXX",
-  Nagad: "01XXXXXXXXX",
-  Upay: "01XXXXXXXXX",
 };
 
 const mfsMethods: MfsPaymentMethod[] = ["bKash", "Nagad", "Upay"];
@@ -72,15 +65,11 @@ export default function CheckoutPage() {
     "CashOnDelivery" | MfsPaymentMethod
   >("CashOnDelivery");
 
-  const [mfsInfo, setMfsInfo] = useState({
-    senderPhoneNumber: "",
-    transactionId: "",
-  });
-
   const [note, setNote] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isPlacing, setIsPlacing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { fetchCounts } = useStore();
 
   const items = cart?.items ?? [];
   const isMfsPayment = isMfsMethod(paymentMethod);
@@ -140,12 +129,6 @@ export default function CheckoutPage() {
     }));
   };
 
-  const updateMfsInfo = (key: keyof typeof mfsInfo, value: string) => {
-    setMfsInfo((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
-  };
 
   const validate = () => {
     if (!address.fullName.trim()) {
@@ -158,8 +141,8 @@ export default function CheckoutPage() {
       return false;
     }
 
-    if (!address.addressLine1.trim()) {
-      toast.error("Address is required");
+    if (!address.addressLine.trim()) {
+      toast.error("Address line is required");
       return false;
     }
 
@@ -178,22 +161,6 @@ export default function CheckoutPage() {
       return false;
     }
 
-    if (isMfsPayment) {
-      if (!mfsInfo.senderPhoneNumber.trim()) {
-        toast.error("Sender phone number is required for MFS payment");
-        return false;
-      }
-
-      if (!mfsInfo.transactionId.trim()) {
-        toast.error("Transaction ID is required for MFS payment");
-        return false;
-      }
-
-      if (mfsInfo.transactionId.trim().length < 5) {
-        toast.error("Please enter a valid transaction ID");
-        return false;
-      }
-    }
 
     return true;
   };
@@ -203,20 +170,16 @@ export default function CheckoutPage() {
     return data.id ?? data.orderId ?? null;
   };
 
-  const submitMfsPayment = async (orderId: number) => {
-    const response = await api.post<ApiResponse<unknown>>(
-      "/payments/mfs/submit",
-      {
-        orderId,
-        paymentMethod,
-        transactionId: mfsInfo.transactionId.trim(),
-        senderPhoneNumber: mfsInfo.senderPhoneNumber.trim(),
-      }
+  const initiatePayment = async (orderId: number, method: string) => {
+    const response = await api.post<ApiResponse<{ paymentUrl: string }>>(
+      `/payments/initiate/${orderId}?method=${method}`
     );
 
-    if (!response.data.success) {
-      throw new Error(response.data.message || "Failed to submit MFS payment");
+    if (response.data.success && response.data.data?.paymentUrl) {
+      return response.data.data.paymentUrl;
     }
+    
+    throw new Error(response.data.message || "Failed to initiate payment");
   };
 
   const placeOrder = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -249,15 +212,16 @@ export default function CheckoutPage() {
           return;
         }
 
-        await submitMfsPayment(orderId);
-
-        toast.success(
-          "Order placed and payment submitted. Admin will verify your transaction."
-        );
+        const paymentUrl = await initiatePayment(orderId, paymentMethod);
+        
+        toast.success("Redirecting to payment gateway...");
+        window.location.href = paymentUrl;
+        return;
       } else {
         toast.success("Order placed successfully");
       }
 
+      fetchCounts();
       window.location.href = "/my-orders";
     } catch (error: any) {
       console.error("Failed to place order:", error);
@@ -347,25 +311,11 @@ export default function CheckoutPage() {
 
                 <div className="md:col-span-2">
                   <Input
-                    label="Address Line 1 *"
-                    value={address.addressLine1}
-                    onChange={(v) => updateAddress("addressLine1", v)}
+                    label="Address Line *"
+                    value={address.addressLine}
+                    onChange={(v) => updateAddress("addressLine", v)}
                   />
                 </div>
-
-                <div className="md:col-span-2">
-                  <Input
-                    label="Address Line 2"
-                    value={address.addressLine2}
-                    onChange={(v) => updateAddress("addressLine2", v)}
-                  />
-                </div>
-
-                <Input
-                  label="Postal Code"
-                  value={address.postalCode}
-                  onChange={(v) => updateAddress("postalCode", v)}
-                />
               </div>
             </div>
 
@@ -385,7 +335,7 @@ export default function CheckoutPage() {
 
                 <PaymentOption
                   title="bKash"
-                  subtitle="Manual MFS payment"
+                  subtitle="Pay with bKash"
                   active={paymentMethod === "bKash"}
                   onClick={() => setPaymentMethod("bKash")}
                   icon={<Smartphone className="h-5 w-5" />}
@@ -393,7 +343,7 @@ export default function CheckoutPage() {
 
                 <PaymentOption
                   title="Nagad"
-                  subtitle="Manual MFS payment"
+                  subtitle="Pay with Nagad"
                   active={paymentMethod === "Nagad"}
                   onClick={() => setPaymentMethod("Nagad")}
                   icon={<Smartphone className="h-5 w-5" />}
@@ -401,7 +351,7 @@ export default function CheckoutPage() {
 
                 <PaymentOption
                   title="Upay"
-                  subtitle="Manual MFS payment"
+                  subtitle="Pay with Upay"
                   active={paymentMethod === "Upay"}
                   onClick={() => setPaymentMethod("Upay")}
                   icon={<CreditCard className="h-5 w-5" />}
@@ -410,60 +360,16 @@ export default function CheckoutPage() {
 
               {isMfsPayment && (
                 <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50 p-5">
-                  <div className="mb-4 flex gap-3">
-                    <Smartphone className="mt-0.5 h-5 w-5 text-blue-700" />
+                  <div className="flex gap-3 text-blue-700">
+                    <Smartphone className="mt-0.5 h-5 w-5" />
                     <div>
                       <h3 className="font-black text-blue-900">
-                        {paymentMethod} Manual Payment
+                        Automated {paymentMethod} Payment
                       </h3>
-                      <p className="mt-1 text-sm leading-6 text-blue-700">
-                        Send{" "}
-                        <span className="font-black">
-                          {formatCurrency(totals.total)}
-                        </span>{" "}
-                        to our {paymentMethod} merchant/personal number, then
-                        enter your transaction details below.
+                      <p className="mt-1 text-sm leading-6">
+                        You will be redirected to the secure {paymentMethod} payment gateway to complete your transaction.
                       </p>
                     </div>
-                  </div>
-
-                  <div className="mb-5 rounded-xl border border-blue-200 bg-white p-4">
-                    <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                      Send Money To
-                    </p>
-                    <p className="mt-1 text-lg font-black text-blue-700">
-                      {mfsNumbers[paymentMethod]}
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Replace this number with your real {paymentMethod} payment
-                      number.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Input
-                      label="Sender Phone Number *"
-                      value={mfsInfo.senderPhoneNumber}
-                      onChange={(v) =>
-                        updateMfsInfo("senderPhoneNumber", v)
-                      }
-                      placeholder="01XXXXXXXXX"
-                    />
-
-                    <Input
-                      label="Transaction ID *"
-                      value={mfsInfo.transactionId}
-                      onChange={(v) => updateMfsInfo("transactionId", v)}
-                      placeholder="Example: TRX987654321"
-                    />
-                  </div>
-
-                  <div className="mt-4 flex items-start gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <p>
-                      Your order will be placed first. Payment status will remain
-                      pending until admin verifies your transaction ID.
-                    </p>
                   </div>
                 </div>
               )}
@@ -528,7 +434,7 @@ export default function CheckoutPage() {
                     <p className="mt-1 text-sm text-gray-500">
                       {paymentMethod === "CashOnDelivery"
                         ? "Cash on Delivery"
-                        : `${paymentMethod} manual payment`}
+                        : `${paymentMethod} automated payment`}
                     </p>
                   </div>
                 </div>

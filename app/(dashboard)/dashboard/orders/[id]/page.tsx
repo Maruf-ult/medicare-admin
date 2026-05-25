@@ -1,12 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import Link from "next/link";
-import api from "@/lib/api";
-import { ApiResponse } from "@/types";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import api from "@/lib/api";
+import { formatCurrency, formatDateTime, getImageUrl } from "@/lib/utils";
+import { ApiResponse } from "@/types";
 import {
   AlertCircle,
   ArrowLeft,
@@ -16,10 +13,14 @@ import {
   Package,
   RefreshCcw,
   Save,
+  ShieldCheck,
   ShoppingBag,
   Truck,
   User,
 } from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 type OrderStatus =
@@ -37,6 +38,7 @@ type OrderItem = {
   productId: number;
   productName: string;
   productImageUrl?: string | null;
+  ProductImageUrl?: string | null;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
@@ -46,11 +48,9 @@ type OrderItem = {
 type ShippingAddress = {
   fullName?: string | null;
   phone?: string | null;
-  addressLine1?: string | null;
-  addressLine2?: string | null;
+  addressLine?: string | null;
   city?: string | null;
   area?: string | null;
-  postalCode?: string | null;
 };
 
 type BackendOrder = {
@@ -73,10 +73,14 @@ type BackendOrder = {
   customerEmail?: string | null;
   customerPhone?: string | null;
 
+  address?: ShippingAddress | null;
   shippingAddress?: ShippingAddress | null;
 
   items?: OrderItem[];
   orderItems?: OrderItem[];
+
+  transactionId?: string | null;
+  senderPhoneNumber?: string | null;
 };
 
 const statusOptions: OrderStatus[] = [
@@ -107,6 +111,10 @@ function getCustomerName(order: BackendOrder) {
 
 function getOrderItems(order: BackendOrder): OrderItem[] {
   return order.items ?? order.orderItems ?? [];
+}
+
+function getOrderItemImageUrl(item: OrderItem): string | null {
+  return item.productImageUrl ?? item.ProductImageUrl ?? null;
 }
 
 function DetailCard({
@@ -157,7 +165,43 @@ export default function OrderDetailsPage() {
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus>("Pending");
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const verifyOrderPayment = async () => {
+    if (!order?.transactionId) {
+      toast.error("No Transaction ID associated with this order");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to verify transaction "${order.transactionId}" for this order?`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setIsVerifying(true);
+      const response = await api.put<ApiResponse<unknown>>(
+        `/payments/mfs/verify/${encodeURIComponent(order.transactionId)}`,
+      );
+
+      if (response.data.success) {
+        toast.success("Payment verified successfully!");
+        getOrder();
+      } else {
+        toast.error(response.data.message || "Failed to verify payment");
+      }
+    } catch (error: any) {
+      console.error("Failed to verify payment:", error);
+      const message =
+        error.response?.data?.message ??
+        error.response?.data?.errors?.[0] ??
+        "Failed to verify payment.";
+      toast.error(message);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
 
   const getOrder = async () => {
     if (!orderId || Number.isNaN(orderId)) {
@@ -171,7 +215,7 @@ export default function OrderDetailsPage() {
       setErrorMessage(null);
 
       const response = await api.get<ApiResponse<BackendOrder>>(
-        `/orders/${orderId}`
+        `/orders/${orderId}`,
       );
 
       if (response.data.success && response.data.data) {
@@ -205,12 +249,12 @@ export default function OrderDetailsPage() {
         `/orders/${order.id}/status`,
         {
           orderStatus: selectedStatus,
-        }
+        },
       );
 
       if (response.data.success) {
         setOrder((prev) =>
-          prev ? { ...prev, orderStatus: selectedStatus } : prev
+          prev ? { ...prev, orderStatus: selectedStatus } : prev,
         );
 
         toast.success(`Order status updated to ${selectedStatus}`);
@@ -227,7 +271,7 @@ export default function OrderDetailsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[500px] items-center justify-center">
+      <div className="flex min-h-125 items-center justify-center">
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <Loader2 className="h-5 w-5 animate-spin" />
           Loading order details...
@@ -260,6 +304,7 @@ export default function OrderDetailsPage() {
   }
 
   const items = getOrderItems(order);
+  const shippingAddress = order.shippingAddress ?? order.address ?? null;
   const displayOrderId =
     order.orderNumber ?? `#MED${String(order.id).padStart(6, "0")}`;
 
@@ -323,9 +368,7 @@ export default function OrderDetailsPage() {
 
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
           <p className="text-sm text-gray-500">Items</p>
-          <p className="mt-3 text-xl font-bold text-gray-900">
-            {items.length}
-          </p>
+          <p className="mt-3 text-xl font-bold text-gray-900">{items.length}</p>
         </div>
 
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -353,12 +396,12 @@ export default function OrderDetailsPage() {
                     key={item.id}
                     className="grid grid-cols-1 gap-4 rounded-xl border border-gray-200 p-4 sm:grid-cols-[80px_1fr_auto]"
                   >
-                    <div className="flex h-20 w-20 items-center justify-center rounded-lg bg-blue-50">
-                      {item.productImageUrl ? (
+                    <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-lg bg-blue-50">
+                      {getOrderItemImageUrl(item) ? (
                         <img
-                          src={item.productImageUrl}
+                          src={getImageUrl(getOrderItemImageUrl(item))}
                           alt={item.productName}
-                          className="h-full w-full rounded-lg object-contain"
+                          className="h-full w-full object-cover"
                         />
                       ) : (
                         <Package className="h-8 w-8 text-blue-300" />
@@ -461,6 +504,12 @@ export default function OrderDetailsPage() {
           <DetailCard title="Payment" icon={CreditCard}>
             <InfoLine label="Method" value={order.paymentMethod} />
             <InfoLine label="Status" value={order.paymentStatus} />
+            {order.transactionId && (
+              <InfoLine label="Transaction ID" value={order.transactionId} />
+            )}
+            {order.senderPhoneNumber && (
+              <InfoLine label="Sender Phone" value={order.senderPhoneNumber} />
+            )}
             <InfoLine label="Subtotal" value={formatCurrency(order.subtotal)} />
             <InfoLine label="Discount" value={formatCurrency(order.discount)} />
             <InfoLine
@@ -468,42 +517,56 @@ export default function OrderDetailsPage() {
               value={formatCurrency(order.deliveryCharge)}
             />
             <InfoLine label="Total" value={formatCurrency(order.total)} />
+
+            {order.paymentMethod !== "CashOnDelivery" &&
+              order.paymentStatus.toLowerCase() !== "paid" && (
+                <div className="mt-4 border-t border-gray-100 pt-4">
+                  <Button
+                    type="button"
+                    disabled={isVerifying || !order.transactionId}
+                    onClick={verifyOrderPayment}
+                    className="w-full bg-green-600 font-bold text-white hover:bg-green-700 disabled:bg-gray-300 gap-2"
+                  >
+                    {isVerifying ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ShieldCheck className="h-4 w-4" />
+                    )}
+                    Verify Manual Payment
+                  </Button>
+                  {!order.transactionId && (
+                    <p className="mt-2 text-center text-xs text-gray-500">
+                      Needs customer to submit payment via simulator or gateway
+                      first.
+                    </p>
+                  )}
+                </div>
+              )}
           </DetailCard>
 
           <DetailCard title="Shipping Address" icon={MapPin}>
-            {order.shippingAddress ? (
+            {shippingAddress ? (
               <>
-                <InfoLine
-                  label="Full Name"
-                  value={order.shippingAddress.fullName}
-                />
-                <InfoLine label="Phone" value={order.shippingAddress.phone} />
-                <InfoLine
-                  label="Address Line 1"
-                  value={order.shippingAddress.addressLine1}
-                />
-                <InfoLine
-                  label="Address Line 2"
-                  value={order.shippingAddress.addressLine2}
-                />
-                <InfoLine label="City" value={order.shippingAddress.city} />
-                <InfoLine label="Area" value={order.shippingAddress.area} />
-                <InfoLine
-                  label="Postal Code"
-                  value={order.shippingAddress.postalCode}
-                />
+                <InfoLine label="Full Name" value={shippingAddress.fullName} />
+                <InfoLine label="Phone" value={shippingAddress.phone} />
+                <InfoLine label="Address" value={shippingAddress.addressLine} />
+                <InfoLine label="City" value={shippingAddress.city} />
+                <InfoLine label="Area" value={shippingAddress.area} />
               </>
             ) : (
-              <p className="text-sm text-gray-500">
-                No shipping address found.
-              </p>
+              <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-700">
+                Delivery address not found.
+              </div>
             )}
           </DetailCard>
 
           <DetailCard title="System Info" icon={Package}>
             <InfoLine label="Order ID" value={order.id} />
             <InfoLine label="Order Number" value={displayOrderId} />
-            <InfoLine label="Created At" value={formatDateTime(order.createdAt)} />
+            <InfoLine
+              label="Created At"
+              value={formatDateTime(order.createdAt)}
+            />
             <InfoLine
               label="Updated At"
               value={order.updatedAt ? formatDateTime(order.updatedAt) : "N/A"}

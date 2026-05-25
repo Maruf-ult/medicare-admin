@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import api from "@/lib/api";
-import { formatCurrency, getProductStock } from "@/lib/utils";
+import { formatCurrency, getProductStock, getImageUrl } from "@/lib/utils";
 import { ApiResponse, PagedResponse } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +18,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useStore } from "@/store/useStore";
 
 type WishlistProduct = {
   id: number;
@@ -41,7 +42,8 @@ type WishlistItem = {
   product?: WishlistProduct;
   productName?: string;
   productSlug?: string;
-  productImageUrl?: string | null;
+  primaryImageUrl?: string | null;
+  imageUrls?: string[];
   price?: number;
   discountPrice?: number | null;
   stock?: number;
@@ -83,7 +85,7 @@ function normalizeWishlistItems(
       requiresPrescription: item.requiresPrescription ?? false,
       brandName: item.brandName ?? null,
       genericName: item.genericName ?? null,
-      imageUrls: item.productImageUrl ? [item.productImageUrl] : [],
+      imageUrls: item.imageUrls ?? (item.primaryImageUrl ? [item.primaryImageUrl] : []),
     };
   });
 }
@@ -94,6 +96,7 @@ export default function WishlistPage() {
   const [removingId, setRemovingId] = useState<number | null>(null);
   const [addingId, setAddingId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { fetchCounts, setWishlistCount, setCount } = useStore();
 
   const getWishlist = async () => {
     try {
@@ -105,9 +108,12 @@ export default function WishlistPage() {
       >("/wishlist");
 
       if (response.data.success && response.data.data) {
-        setProducts(normalizeWishlistItems(response.data.data));
+        const items = normalizeWishlistItems(response.data.data);
+        setProducts(items);
+        setWishlistCount(items.length);
       } else {
         setProducts([]);
+        setWishlistCount(0);
         setErrorMessage(response.data.message || "Failed to load wishlist.");
       }
     } catch (error) {
@@ -138,7 +144,11 @@ export default function WishlistPage() {
       );
 
       if (response.data.success) {
-        setProducts((prev) => prev.filter((item) => item.id !== product.id));
+        setProducts((prev) => {
+          const newItems = prev.filter((item) => item.id !== product.id);
+          setWishlistCount(newItems.length);
+          return newItems;
+        });
         toast.success("Removed from wishlist");
       } else {
         toast.error(response.data.message || "Failed to remove item");
@@ -167,6 +177,7 @@ export default function WishlistPage() {
 
       if (response.data.success) {
         toast.success("Product added to cart");
+        fetchCounts(); // Update both counts as one moved to the other potentially or just to be sure
       } else {
         toast.error(response.data.message || "Failed to add product to cart");
       }
@@ -264,7 +275,7 @@ export default function WishlistPage() {
                   >
                     {product.imageUrls && product.imageUrls.length > 0 ? (
                       <img
-                        src={product.imageUrls[0]}
+                        src={getImageUrl(product.imageUrls[0])}
                         alt={product.name}
                         className="h-full w-full rounded-xl object-contain p-2"
                       />
